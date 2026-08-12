@@ -1,0 +1,25 @@
+# 프론트엔드(React)와 백엔드(FastAPI)를 동시에 실행하는 Docker Compose 설정
+
+version: '3.8'
+
+services:
+  # React 프론트엔드
+  frontend:
+    build: ./frontend        # frontend 폴더의 Dockerfile 사용
+    ports:
+      - "3000:3000"          # 호스트:컨테이너 포트 매핑
+    volumes:
+      - ./frontend:/app      # 코드 변경시 자동 반영
+      - /app/node_modules    # node_modules는 컨테이너 것 사용
+    environment:
+      - REACT_APP_API_URL=http://localhost:8000  # 백엔드 주소
+
+  # FastAPI 백엔드
+  backend:
+    build: ./backend         # backend 폴더의 Dockerfile 사용
+    ports:
+      - "8000:8000"          # 호스트:컨테이너 포트 매핑
+    volumes:
+      - ./backend:/app       # 코드 변경시 자동 반영
+    environment:
+      - PYTHONUNBUFFERED=1   # Python 로그 즉시 출력
