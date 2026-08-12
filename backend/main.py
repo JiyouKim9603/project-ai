@@ -42,6 +42,7 @@ def call_gpt(keyword: str) -> dict:
 
 {
   "cover": {
+    "title": "짧은 발표 제목 (10자 이내)",
     "subtitle": "한 줄 부제목 (20자 이내)",
     "description": "발표 개요 한 문장",
     "team": "팀명",
@@ -70,8 +71,8 @@ def call_gpt(keyword: str) -> dict:
     "cause2_body": "원인2 설명",
     "cause3_title": "원인3 제목",
     "cause3_body": "원인3 설명",
-    "result": "결과 키워드 (10자 이내)",
-    "result_body": "결과 상세 설명 (1~2문장, 50자 이내)"
+    "result": "결과 키워드 (8자 이내, 명사형)",
+    "result_body": "결과 상세 설명 (1~2문장, 40자 이내)"
   }
 }
 
@@ -151,8 +152,8 @@ def fill_slide1(xml_bytes: bytes, data: dict, keyword: str) -> bytes:
     title_line2 = " ".join(words[half:]) if half > 0 else ""
 
     mapping = {
-        2: title_line1,                    # 첫 번째 줄 (검정)
-        3: title_line2,                    # 두 번째 줄 (빨간색)
+        2: data["cover"].get("title", keyword)[:8],   # 키워드 대신 GPT 제목
+        3: cover.get("subtitle", "")[:10],
         4: cover.get("description", ""),
         5: cover.get("subtitle", ""),
         6: "팀  딸깍",
@@ -220,11 +221,11 @@ def fill_slide8(xml_bytes: bytes, data: dict) -> bytes:
         24: a.get("cause1_body", ""),
         25: a.get("cause2_body", ""),
         26: a.get("cause3_body", ""),
-        35: a.get("cause1_title", ""),
-        36: a.get("cause2_title", ""),
-        37: a.get("cause3_title", ""),
+        35: a.get("cause1_title", "")[:6],
+        36: a.get("cause2_title", "")[:6],
+        37: a.get("cause3_title", "")[:6],
         38: a.get("result_body", ""),
-        39: a.get("result", "결과")[:10],   # 10자로 강제 자르기
+        39: a.get("result", "결과")[:8],
     }
     for idx, text in mapping.items():
         if idx < len(sps):
