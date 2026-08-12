@@ -1,0 +1,231 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: 'Segoe UI', 'Malgun Gothic', sans-serif;
+  background: #fff;
+  color: #1a1a1a;
+}
+
+/* 네비게이션 */
+.nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 80px;
+  border-bottom: 1px solid #f0f0f0;
+  position: sticky;
+  top: 0;
+  background: #fff;
+  z-index: 100;
+}
+
+.nav-logo {
+  font-size: 22px;
+  font-weight: 800;
+  color: #1a1a1a;
+}
+
+.nav-logo span { color: #5B5BD6; }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.nav-links a {
+  text-decoration: none;
+  color: #555;
+  font-size: 15px;
+}
+
+.nav-links a:hover { color: #5B5BD6; }
+
+.nav-btn {
+  background: #5B5BD6;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 20px;
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* 히어로 */
+.hero {
+  text-align: center;
+  padding: 100px 80px 80px;
+  background: linear-gradient(180deg, #f8f7ff 0%, #fff 100%);
+}
+
+.hero-badge {
+  display: inline-block;
+  background: #ededff;
+  color: #5B5BD6;
+  font-size: 13px;
+  font-weight: 600;
+  padding: 6px 16px;
+  border-radius: 20px;
+  margin-bottom: 24px;
+}
+
+.hero h1 {
+  font-size: 52px;
+  font-weight: 800;
+  line-height: 1.2;
+  margin-bottom: 20px;
+  color: #1a1a1a;
+}
+
+.hero h1 span { color: #5B5BD6; }
+
+.hero p {
+  font-size: 18px;
+  color: #666;
+  line-height: 1.7;
+  margin-bottom: 40px;
+}
+
+.hero-btns {
+  display: flex;
+  gap: 16px;
+  justify-content: center;
+}
+
+.btn-primary {
+  background: #5B5BD6;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 16px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.btn-primary:hover { background: #4a4ab8; }
+
+.btn-secondary {
+  background: #fff;
+  color: #5B5BD6;
+  border: 2px solid #5B5BD6;
+  border-radius: 10px;
+  padding: 16px 32px;
+  font-size: 16px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+/* 기능 소개 */
+.features {
+  padding: 80px;
+  text-align: center;
+}
+
+.features h2 {
+  font-size: 36px;
+  font-weight: 800;
+  margin-bottom: 48px;
+}
+
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.feature-card {
+  background: #f8f7ff;
+  border-radius: 16px;
+  padding: 32px 24px;
+  text-align: left;
+}
+
+.feature-icon {
+  font-size: 32px;
+  margin-bottom: 16px;
+}
+
+.feature-card h3 {
+  font-size: 18px;
+  font-weight: 700;
+  margin-bottom: 10px;
+}
+
+.feature-card p {
+  font-size: 14px;
+  color: #666;
+  line-height: 1.6;
+}
+
+/* 사용 흐름 */
+.flow {
+  padding: 80px;
+  background: #f8f7ff;
+  text-align: center;
+}
+
+.flow h2 {
+  font-size: 36px;
+  font-weight: 800;
+  margin-bottom: 48px;
+}
+
+.flow-steps {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 16px;
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+.flow-step {
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 24px;
+  flex: 1;
+}
+
+.step-num {
+  width: 40px;
+  height: 40px;
+  background: #5B5BD6;
+  color: #fff;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  margin: 0 auto 16px;
+}
+
+.flow-step h3 {
+  font-size: 16px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.flow-step p {
+  font-size: 13px;
+  color: #666;
+  line-height: 1.5;
+}
+
+.flow-arrow {
+  font-size: 24px;
+  color: #5B5BD6;
+  font-weight: 700;
+}
+
+/* 푸터 */
+.footer {
+  padding: 40px 80px;
+  text-align: center;
+  color: #999;
+  font-size: 14px;
+  border-top: 1px solid #f0f0f0;
+}
