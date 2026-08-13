@@ -2,348 +2,442 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import openai
-import json
-import zipfile
-import shutil
-import os
-import re
-import tempfile
+import openai, json, zipfile, shutil, os, re, tempfile
 from datetime import date
-from copy import deepcopy
 from lxml import etree
+from typing import Optional
 
 app = FastAPI()
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_origins=["http://localhost:3000","http://localhost:3001","http://output.modui.cloud"],
+    allow_methods=["*"], allow_headers=["*"],
 )
 
-# ── 설정 ────────────────────────────────────────────
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TEMPLATE_PATH  = os.path.join(os.path.dirname(__file__), "template.pptx")
 
-# ── 요청 모델 ────────────────────────────────────────
+NS  = "http://schemas.openxmlformats.org/drawingml/2006/main"
+PNS = "http://schemas.openxmlformats.org/presentationml/2006/main"
+RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
+
 class PPTRequest(BaseModel):
     keyword: str
+    team: Optional[str] = "딸깍"
+    slide_count: Optional[int] = 5
 
-# ── GPT 호출 ─────────────────────────────────────────
-def call_gpt(keyword: str) -> dict:
+# 10장 고정 조합
+COMBO_10 = [
+    ("slide1.xml",  "cover"),
+    ("slide2.xml",  "overview"),
+    ("slide4.xml",  "cards"),
+    ("slide6.xml",  "keywords"),
+    ("slide7.xml",  "list"),
+    ("slide8.xml",  "analysis"),
+    ("slide10.xml", "cards4"),
+    ("slide11.xml", "timeline"),
+    ("slide2.xml",  "overview2"),
+    ("slide15.xml", "outro"),
+]
+
+COMBO_5 = [
+    ("slide1.xml",  "cover"),
+    ("slide2.xml",  "overview"),
+    ("slide4.xml",  "cards"),
+    ("slide8.xml",  "analysis"),
+    ("slide15.xml", "outro"),
+]
+
+COMBO_7 = [
+    ("slide1.xml",  "cover"),
+    ("slide2.xml",  "overview"),
+    ("slide4.xml",  "cards"),
+    ("slide7.xml",  "list"),
+    ("slide8.xml",  "analysis"),
+    ("slide10.xml", "cards4"),
+    ("slide15.xml", "outro"),
+]
+
+COMBO_3 = [
+    ("slide1.xml",  "cover"),
+    ("slide4.xml",  "cards"),
+    ("slide15.xml", "outro"),
+]
+
+COMBOS = {3: COMBO_3, 5: COMBO_5, 7: COMBO_7, 10: COMBO_10}
+
+def call_gpt(keyword):
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
-    response = client.chat.completions.create(
+    res = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {
-                "role": "system",
-                "content": """당신은 프레젠테이션 전문가입니다. 키워드를 받으면 아래 JSON 형식으로만 응답하세요.
+            {"role":"system","content":"""프레젠테이션 전문가입니다. 아래 JSON만 반환, 다른 텍스트 절대 금지.
 
 {
   "cover": {
-    "title": "짧은 발표 제목 (10자 이내)",
-    "subtitle": "한 줄 부제목 (20자 이내)",
-    "description": "발표 개요 한 문장",
-    "team": "팀명",
-    "date": "날짜"
+    "title_line1": "제목 앞부분 (5자이내)",
+    "title_line2": "제목 뒷부분 (8자이내)",
+    "description": "개요 한 문장 (40자이내)",
+    "subtitle": "부제목 (20자이내)"
   },
   "overview": {
-    "title": "개요 슬라이드 제목",
-    "left_title": "왼쪽 섹션 제목",
-    "left_body": "왼쪽 본문 내용 (3~4문장)",
-    "right_body": "오른쪽 본문 내용 (3~4문장)"
+    "title": "개요 제목 (12자이내)",
+    "section_title": "핵심 주제 (12자이내)",
+    "left_body": "왼쪽 본문 3문장 (100자이내)",
+    "right_body": "오른쪽 본문 3문장 (100자이내)"
+  },
+  "overview2": {
+    "title": "두번째 개요 제목 (12자이내)",
+    "section_title": "핵심 주제2 (12자이내)",
+    "left_body": "왼쪽 본문 3문장 (100자이내)",
+    "right_body": "오른쪽 본문 3문장 (100자이내)"
   },
   "cards": {
-    "title": "카드 슬라이드 제목",
-    "card1_title": "카드1 제목",
-    "card1_body": "카드1 내용 (2~3문장)",
-    "card2_title": "카드2 제목",
-    "card2_body": "카드2 내용 (2~3문장)",
-    "card3_title": "카드3 제목",
-    "card3_body": "카드3 내용 (2~3문장)"
+    "title": "카드 제목 (12자이내)",
+    "card1_title": "카드1 제목 (6자이내)",
+    "card1_body": "카드1 내용 (60자이내)",
+    "card2_title": "카드2 제목 (6자이내)",
+    "card2_body": "카드2 내용 (60자이내)",
+    "card3_title": "카드3 제목 (6자이내)",
+    "card3_body": "카드3 내용 (60자이내)"
+  },
+  "keywords": {
+    "title": "키워드 제목 (12자이내)",
+    "label1": "라벨1 (6자이내)",
+    "label2": "라벨2 (6자이내)",
+    "label3": "라벨3 (6자이내)",
+    "label4": "라벨4 (6자이내)",
+    "keyword1": "키워드1 (6자이내)",
+    "keyword2": "키워드2 (6자이내)",
+    "keyword3": "키워드3 (6자이내)",
+    "keyword4": "키워드4 (6자이내)",
+    "summary": "요약 문장 (50자이내)"
+  },
+  "list": {
+    "title": "리스트 제목 (12자이내)",
+    "intro": "도입 문장 (50자이내)",
+    "item1": "항목1 (25자이내)",
+    "item2": "항목2 (25자이내)",
+    "item3": "항목3 (25자이내)"
   },
   "analysis": {
-    "title": "분석 슬라이드 제목",
-    "cause1_title": "원인1 제목",
-    "cause1_body": "원인1 설명",
-    "cause2_title": "원인2 제목",
-    "cause2_body": "원인2 설명",
-    "cause3_title": "원인3 제목",
-    "cause3_body": "원인3 설명",
-    "result": "결과 키워드 (8자 이내, 명사형)",
-    "result_body": "결과 상세 설명 (1~2문장, 40자 이내)"
+    "title": "분석 제목 (12자이내)",
+    "cause1_title": "원인1 (4자이내)",
+    "cause1_body": "원인1 설명 (35자이내)",
+    "cause2_title": "원인2 (4자이내)",
+    "cause2_body": "원인2 설명 (35자이내)",
+    "cause3_title": "원인3 (4자이내)",
+    "cause3_body": "원인3 설명 (35자이내)",
+    "result": "결과 (5자이내)",
+    "result_body": "결과 설명 (50자이내)"
+  },
+  "cards4": {
+    "title": "4카드 제목 (12자이내)",
+    "card1_title": "카드1 (6자이내)",
+    "card2_title": "카드2 (6자이내)",
+    "card3_title": "카드3 (6자이내)",
+    "card4_title": "카드4 (6자이내)",
+    "card1_body": "카드1 내용 (40자이내)",
+    "card2_body": "카드2 내용 (40자이내)",
+    "card3_body": "카드3 내용 (40자이내)",
+    "card4_body": "카드4 내용 (40자이내)"
+  },
+  "timeline": {
+    "title": "타임라인 제목 (12자이내)",
+    "step1_title": "단계1 (8자이내)",
+    "step2_title": "단계2 (8자이내)",
+    "step3_title": "단계3 (8자이내)",
+    "step4_title": "단계4 (8자이내)",
+    "step1_body": "단계1 설명 (25자이내)",
+    "step2_body": "단계2 설명 (25자이내)",
+    "step3_body": "단계3 설명 (25자이내)",
+    "step4_body": "단계4 설명 (25자이내)"
   }
-}
-
-JSON만 반환하고 다른 텍스트는 절대 포함하지 마세요."""
-            },
-            {
-                "role": "user",
-                "content": f"키워드: {keyword}"
-            }
+}"""},
+            {"role":"user","content":f"키워드: {keyword}"}
         ]
     )
-    text = response.choices[0].message.content
-    clean = re.sub(r"```json|```", "", text).strip()
+    clean = re.sub(r"```json|```","", res.choices[0].message.content).strip()
     return json.loads(clean)
 
+# ── XML 헬퍼 ────────────────────────────────────────────
+def find_shape(root, name):
+    for sp in root.iter(f"{{{PNS}}}sp"):
+        nvSpPr = sp.find(f"{{{PNS}}}nvSpPr")
+        if nvSpPr is not None:
+            cNvPr = nvSpPr.find(f"{{{PNS}}}cNvPr")
+            if cNvPr is not None and cNvPr.get('name') == name:
+                return sp
+    return None
 
-# ── XML 텍스트 교체 헬퍼 ─────────────────────────────
-NS = "http://schemas.openxmlformats.org/drawingml/2006/main"
-
-def get_sp_text(sp) -> str:
-    """shape의 모든 <a:t> 텍스트를 합쳐서 반환"""
-    return "".join(t.text or "" for t in sp.iter(f"{{{NS}}}t"))
-
-def set_sp_text(sp, new_text: str):
-    """
-    shape 안의 첫 번째 <a:r>의 <a:t>에 텍스트를 넣고
-    나머지 <a:r>/<a:p>는 제거해 스타일을 보존합니다.
-    """
-    # 모든 <a:p> 찾기
-    paras = sp.findall(f".//{{{NS}}}p")
+def set_text(root, name, txt):
+    sp = find_shape(root, name)
+    if sp is None:
+        return
+    paras = list(sp.iter(f"{{{NS}}}p"))
     if not paras:
         return
-
     first_para = paras[0]
-
-    # 첫 번째 <a:r> 찾기
     runs = first_para.findall(f"{{{NS}}}r")
     if runs:
-        # 첫 번째 run에 텍스트 설정
-        t_elem = runs[0].find(f"{{{NS}}}t")
-        if t_elem is not None:
-            t_elem.text = new_text
-        # 나머지 run 제거
+        t = runs[0].find(f"{{{NS}}}t")
+        if t is not None:
+            t.text = txt
         for r in runs[1:]:
             first_para.remove(r)
     else:
-        # run이 없으면 새로 생성
-        r_elem = etree.SubElement(first_para, f"{{{NS}}}r")
-        t_elem = etree.SubElement(r_elem, f"{{{NS}}}t")
-        t_elem.text = new_text
-
-    # 나머지 단락 제거 (첫 번째만 유지)
+        r = etree.SubElement(first_para, f"{{{NS}}}r")
+        t = etree.SubElement(r, f"{{{NS}}}t")
+        t.text = txt
     for p in paras[1:]:
-        p.getparent().remove(p)
+        if p.getparent() is not None:
+            p.getparent().remove(p)
 
+def s(d, k, lim):
+    return (d.get(k) or "")[:lim]
 
-def get_shapes(xml_bytes: bytes):
-    """XML → root element, shape 목록 반환"""
-    root = etree.fromstring(xml_bytes)
-    PNS = "http://schemas.openxmlformats.org/presentationml/2006/main"
-    sps = root.findall(f".//{{{PNS}}}sp")
-    return root, sps
+# ── 슬라이드별 채우기 ────────────────────────────────────
+def fill_cover(root, data, keyword, team, today):
+    c = data.get("cover", {})
+    set_text(root, "TextBox 5",  s(c,"title_line1",5))
+    set_text(root, "TextBox 6",  s(c,"title_line2",8))
+    set_text(root, "TextBox 7",  s(c,"description",40))
+    set_text(root, "TextBox 8",  s(c,"subtitle",20))
+    set_text(root, "TextBox 9",  f"팀  {team}")
+    set_text(root, "TextBox 10", today)
+    set_text(root, "TextBox 11", "modui.ai")
 
+def fill_overview(root, dk, data, label):
+    o = data.get(dk, {})
+    set_text(root, "TextBox 19", s(o,"title",12))
+    set_text(root, "TextBox 20", "")
+    set_text(root, "TextBox 21", label)
+    set_text(root, "TextBox 22", s(o,"left_body",100))
+    set_text(root, "TextBox 23", s(o,"right_body",100))
+    set_text(root, "TextBox 24", s(o,"section_title",12))
 
-# ── 슬라이드별 교체 함수 ─────────────────────────────
+def fill_cards(root, dk, data, label):
+    c = data.get(dk, {})
+    set_text(root, "TextBox 17", s(c,"title",12))
+    set_text(root, "TextBox 18", "")
+    set_text(root, "TextBox 19", label)
+    set_text(root, "TextBox 29", s(c,"card1_body",60))
+    set_text(root, "TextBox 30", s(c,"card2_body",60))
+    set_text(root, "TextBox 31", s(c,"card3_body",60))
+    set_text(root, "TextBox 32", s(c,"card1_title",6))
+    set_text(root, "TextBox 33", s(c,"card2_title",6))
+    set_text(root, "TextBox 34", s(c,"card3_title",6))
+    set_text(root, "TextBox 38", "Card 01")
+    set_text(root, "TextBox 39", "Card 02")
+    set_text(root, "TextBox 40", "Card 03")
 
-def fill_slide1(xml_bytes: bytes, data: dict, keyword: str) -> bytes:
-    """커버 슬라이드: sp[2]~sp[8]"""
-    root, sps = get_shapes(xml_bytes)
-    cover = data["cover"]
-    today = date.today().strftime("%Y.%m.%d")
+def fill_keywords(root, dk, data, label):
+    k = data.get(dk, {})
+    set_text(root, "TextBox 17", s(k,"title",12))
+    set_text(root, "TextBox 18", "")
+    set_text(root, "TextBox 19", label)
+    set_text(root, "TextBox 39", s(k,"label1",6))
+    set_text(root, "TextBox 40", s(k,"label2",6))
+    set_text(root, "TextBox 41", s(k,"label3",6))
+    set_text(root, "TextBox 42", s(k,"label4",6))
+    set_text(root, "TextBox 43", s(k,"keyword1",6))
+    set_text(root, "TextBox 44", s(k,"keyword2",6))
+    set_text(root, "TextBox 45", s(k,"keyword3",6))
+    set_text(root, "TextBox 46", s(k,"keyword4",6))
+    set_text(root, "TextBox 51", s(k,"summary",50))
 
-    # 키워드를 두 줄로 나눠서 겹침 방지
-    words = keyword.split()
-    half = len(words) // 2
-    title_line1 = " ".join(words[:half]) if half > 0 else keyword
-    title_line2 = " ".join(words[half:]) if half > 0 else ""
+def fill_list(root, dk, data, label):
+    li = data.get(dk, {})
+    set_text(root, "TextBox 17", s(li,"title",12))
+    set_text(root, "TextBox 18", "")
+    set_text(root, "TextBox 19", label)
+    set_text(root, "TextBox 20", s(li,"intro",50))
+    set_text(root, "TextBox 30", s(li,"item1",25))
+    set_text(root, "TextBox 31", s(li,"item2",25))
+    set_text(root, "TextBox 32", s(li,"item3",25))
 
-    mapping = {
-        2: data["cover"].get("title", keyword)[:8],   # 키워드 대신 GPT 제목
-        3: cover.get("subtitle", "")[:10],
-        4: cover.get("description", ""),
-        5: cover.get("subtitle", ""),
-        6: "팀  딸깍",
-        7: today,
-        8: "modui.ai"
-    }
-    for idx, text in mapping.items():
-        if idx < len(sps):
-            set_sp_text(sps[idx], text)
+def fill_analysis(root, dk, data, label):
+    a = data.get(dk, {})
+    set_text(root, "TextBox 17", s(a,"title",12))
+    set_text(root, "TextBox 18", "")
+    set_text(root, "TextBox 19", label)
+    set_text(root, "TextBox 33", s(a,"cause1_body",35))
+    set_text(root, "TextBox 34", s(a,"cause2_body",35))
+    set_text(root, "TextBox 35", s(a,"cause3_body",35))
+    set_text(root, "TextBox 48", s(a,"cause1_title",4))
+    set_text(root, "TextBox 49", s(a,"cause2_title",4))
+    set_text(root, "TextBox 50", s(a,"cause3_title",4))
+    set_text(root, "TextBox 51", s(a,"result_body",50))
+    set_text(root, "TextBox 52", s(a,"result",5))
 
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+def fill_cards4(root, dk, data, label):
+    c = data.get(dk, {})
+    set_text(root, "TextBox 17", s(c,"title",12))
+    set_text(root, "TextBox 18", "")
+    set_text(root, "TextBox 19", label)
+    set_text(root, "TextBox 32", s(c,"card1_title",6))
+    set_text(root, "TextBox 33", s(c,"card2_title",6))
+    set_text(root, "TextBox 34", s(c,"card3_title",6))
+    set_text(root, "TextBox 35", s(c,"card4_title",6))
+    set_text(root, "TextBox 36", s(c,"card1_body",40))
+    set_text(root, "TextBox 37", s(c,"card2_body",40))
+    set_text(root, "TextBox 38", s(c,"card3_body",40))
+    set_text(root, "TextBox 39", s(c,"card4_body",40))
 
+def fill_timeline(root, dk, data, label):
+    t = data.get(dk, {})
+    set_text(root, "TextBox 17", s(t,"title",12))
+    set_text(root, "TextBox 18", "")
+    set_text(root, "TextBox 19", label)
+    set_text(root, "TextBox 25", s(t,"step1_title",8))
+    set_text(root, "TextBox 28", s(t,"step2_title",8))
+    set_text(root, "TextBox 30", s(t,"step3_title",8))
+    set_text(root, "TextBox 32", s(t,"step4_title",8))
+    set_text(root, "TextBox 26", s(t,"step1_body",25))
+    set_text(root, "TextBox 40", s(t,"step2_body",25))
+    set_text(root, "TextBox 31", s(t,"step3_body",25))
+    set_text(root, "TextBox 42", s(t,"step4_body",25))
 
-def fill_slide2(xml_bytes: bytes, data: dict) -> bytes:
-    """장문 텍스트 슬라이드: sp[14]~sp[19]"""
-    root, sps = get_shapes(xml_bytes)
-    ov = data["overview"]
+def fill_outro(root, team, today):
+    set_text(root, "TextBox 7",  "")
+    set_text(root, "TextBox 8",  "")
+    set_text(root, "TextBox 9",  f"팀  {team}")
+    set_text(root, "TextBox 10", today)
+    set_text(root, "TextBox 11", "modui.ai")
 
-    mapping = {
-        14: ov.get("title", ""),
-        15: ov.get("left_title", ""),
-        17: ov.get("left_body", ""),
-        18: ov.get("right_body", ""),
-        19: ov.get("left_title", ""),
-    }
-    for idx, text in mapping.items():
-        if idx < len(sps):
-            set_sp_text(sps[idx], text)
+FILL = {
+    "cover":    fill_cover,
+    "overview": fill_overview,  "overview2": fill_overview,
+    "cards":    fill_cards,
+    "keywords": fill_keywords,
+    "list":     fill_list,
+    "analysis": fill_analysis,
+    "cards4":   fill_cards4,
+    "timeline": fill_timeline,
+    "outro":    fill_outro,
+}
 
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
+def copy_slide(unpacked, src, dst):
+    sd = os.path.join(unpacked,"ppt","slides")
+    rd = os.path.join(sd,"_rels")
+    shutil.copy(os.path.join(sd,src), os.path.join(sd,dst))
+    sr = src+".rels"; dr = dst+".rels"
+    if os.path.exists(os.path.join(rd,sr)):
+        shutil.copy(os.path.join(rd,sr), os.path.join(rd,dr))
 
+def register_slide(fname, prs_root, rels_root):
+    PRS2  = "http://schemas.openxmlformats.org/presentationml/2006/main"
+    R2    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    RELS2 = "http://schemas.openxmlformats.org/package/2006/relationships"
+    max_rid = max(
+        (int(r.get("Id","rId0")[3:]) for r in rels_root.findall(f"{{{RELS2}}}Relationship") if r.get("Id","").startswith("rId")),
+        default=0
+    )
+    new_rid = f"rId{max_rid+1}"
+    etree.SubElement(rels_root, f"{{{RELS2}}}Relationship", {
+        "Id": new_rid,
+        "Type": f"{R2}/slide",
+        "Target": f"slides/{fname}"
+    })
+    sld_lst = prs_root.find(f"{{{PRS2}}}sldIdLst")
+    max_sid = max(
+        (int(s.get("id","255")) for s in sld_lst),
+        default=255
+    )
+    etree.SubElement(sld_lst, f"{{{PRS2}}}sldId", {
+        "id": str(max_sid+1),
+        f"{{{R2}}}id": new_rid
+    })
 
-def fill_slide4(xml_bytes: bytes, data: dict) -> bytes:
-    """3카드 슬라이드: sp[12]~sp[32]"""
-    root, sps = get_shapes(xml_bytes)
-    c = data["cards"]
-
-    mapping = {
-        12: c.get("title", ""),
-        15: "",   # 섹션 번호 유지 (03)
-        21: c.get("card1_body", ""),
-        22: c.get("card2_body", ""),
-        23: c.get("card3_body", ""),
-        24: c.get("card1_title", ""),
-        25: c.get("card2_title", ""),
-        26: c.get("card3_title", ""),
-        30: "01",
-        31: "02",
-        32: "03",
-    }
-    for idx, text in mapping.items():
-        if idx < len(sps) and text:
-            set_sp_text(sps[idx], text)
-
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
-
-
-def fill_slide8(xml_bytes: bytes, data: dict) -> bytes:
-    """원인→결과 슬라이드: sp[12]~sp[39]"""
-    root, sps = get_shapes(xml_bytes)
-    a = data["analysis"]
-
-    mapping = {
-        12: a.get("title", ""),
-        24: a.get("cause1_body", ""),
-        25: a.get("cause2_body", ""),
-        26: a.get("cause3_body", ""),
-        35: a.get("cause1_title", "")[:6],
-        36: a.get("cause2_title", "")[:6],
-        37: a.get("cause3_title", "")[:6],
-        38: a.get("result_body", ""),
-        39: a.get("result", "결과")[:8],
-    }
-    for idx, text in mapping.items():
-        if idx < len(sps):
-            set_sp_text(sps[idx], text)
-
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
-
-
-def fill_slide15(xml_bytes: bytes, keyword: str) -> bytes:
-    """마무리 슬라이드: 날짜/팀명 교체"""
-    root, sps = get_shapes(xml_bytes)
-    today = date.today().strftime("%Y.%m.%d")
-
-    mapping = {
-        4: f"{keyword} — 모듀이 AI 분석 결과",
-        5: "딸깍팀 | CloudDX 7기 캡스톤 프로젝트",
-        6: "팀  딸깍",
-        7: today,
-        8: "modui.ai"
-    }
-    for idx, text in mapping.items():
-        if idx < len(sps):
-            set_sp_text(sps[idx], text)
-
-    return etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True)
-
-
-# ── 메인 엔드포인트 ──────────────────────────────────
 @app.post("/generate-ppt")
 def generate_ppt(req: PPTRequest):
-    keyword = req.keyword
+    keyword     = req.keyword
+    team        = req.team or "딸깍"
+    slide_count = req.slide_count or 5
+    today       = date.today().strftime("%Y.%m.%d")
 
-    # 1) GPT 호출
+    best  = min(COMBOS, key=lambda x: abs(x-slide_count))
+    combo = COMBOS[best]
+
     data = call_gpt(keyword)
 
-    # 2) 템플릿 복사 → 임시 디렉토리에 압축 해제
-    tmp_dir = tempfile.mkdtemp()
-    tmp_pptx = os.path.join(tmp_dir, "output.pptx")
-    unpacked = os.path.join(tmp_dir, "unpacked")
-
-    shutil.copy(TEMPLATE_PATH, tmp_pptx)
-    with zipfile.ZipFile(tmp_pptx, "r") as z:
+    tmp_dir  = tempfile.mkdtemp()
+    unpacked = os.path.join(tmp_dir,"unpacked")
+    shutil.copy(TEMPLATE_PATH, os.path.join(tmp_dir,"output.pptx"))
+    with zipfile.ZipFile(os.path.join(tmp_dir,"output.pptx"),"r") as z:
         z.extractall(unpacked)
 
-    # 3) 각 슬라이드 XML 교체
-    slide_map = {
-        "slide1.xml":  lambda x: fill_slide1(x, data, keyword),
-        "slide2.xml":  lambda x: fill_slide2(x, data),
-        "slide4.xml":  lambda x: fill_slide4(x, data),
-        "slide8.xml":  lambda x: fill_slide8(x, data),
-        "slide15.xml": lambda x: fill_slide15(x, keyword),
-    }
+    prs_path  = os.path.join(unpacked,"ppt","presentation.xml")
+    rels_path = os.path.join(unpacked,"ppt","_rels","presentation.xml.rels")
+    with open(prs_path,"rb")  as f: prs_root  = etree.fromstring(f.read())
+    with open(rels_path,"rb") as f: rels_root = etree.fromstring(f.read())
 
-    slides_dir = os.path.join(unpacked, "ppt", "slides")
-    for filename, fill_fn in slide_map.items():
-        path = os.path.join(slides_dir, filename)
-        if os.path.exists(path):
-            with open(path, "rb") as f:
-                xml_bytes = f.read()
-            new_xml = fill_fn(xml_bytes)
-            with open(path, "wb") as f:
-                f.write(new_xml)
+    PRS2  = "http://schemas.openxmlformats.org/presentationml/2006/main"
+    R2    = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    RELS2 = "http://schemas.openxmlformats.org/package/2006/relationships"
 
-    # 4) 사용할 슬라이드만 남기고 나머지 삭제 → presentation.xml 수정
-    keep_slides = {"slide1.xml", "slide2.xml", "slide4.xml", "slide8.xml", "slide15.xml"}
-    prs_path = os.path.join(unpacked, "ppt", "presentation.xml")
+    # 기존 슬라이드 관계 모두 제거
+    sld_lst = prs_root.find(f"{{{PRS2}}}sldIdLst")
+    for e in list(sld_lst): sld_lst.remove(e)
+    for r in list(rels_root.findall(f"{{{RELS2}}}Relationship")):
+        t = r.get("Type","")
+        if "/slide" in t and "/slideLayout" not in t and "/slideMaster" not in t:
+            rels_root.remove(r)
 
-    with open(prs_path, "rb") as f:
-        prs_root = etree.fromstring(f.read())
+    used = {}
+    num  = [0]
+    def lbl():
+        num[0] += 1; return f"{num[0]:02d}"
 
-    PRS_NS = "http://schemas.openxmlformats.org/presentationml/2006/main"
-    R_NS   = "http://schemas.openxmlformats.org/officeDocument/2006/relationships"
+    for tmpl, dk in combo:
+        used[tmpl] = used.get(tmpl,0) + 1
+        if used[tmpl] == 1:
+            actual = tmpl
+        else:
+            actual = tmpl.replace(".xml", f"_copy{used[tmpl]}.xml")
+            copy_slide(unpacked, tmpl, actual)
 
-    # slide id 목록 파악
-    sld_id_lst = prs_root.find(f"{{{PRS_NS}}}sldIdLst")
+        register_slide(actual, prs_root, rels_root)
 
-    # rels 파일에서 slide 파일명 ↔ rId 매핑
-    rels_path = os.path.join(unpacked, "ppt", "_rels", "presentation.xml.rels")
-    with open(rels_path, "rb") as f:
-        rels_root = etree.fromstring(f.read())
+        path = os.path.join(unpacked,"ppt","slides",actual)
+        with open(path,"rb") as f: xml = f.read()
+        root = etree.fromstring(xml)
 
-    RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
-    rid_to_file = {}
-    for rel in rels_root.findall(f"{{{RELS_NS}}}Relationship"):
-        target = rel.get("Target", "")
-        if target.startswith("slides/slide") and target.endswith(".xml"):
-            rid_to_file[rel.get("Id")] = os.path.basename(target)
+        fn = FILL.get(dk)
+        if fn:
+            if dk == "cover":
+                fn(root, data, keyword, team, today)
+            elif dk == "outro":
+                fn(root, team, today)
+            else:
+                fn(root, dk, data, lbl())
 
-    # sldIdLst에서 불필요한 슬라이드 제거
-    if sld_id_lst is not None:
-        to_remove = []
-        for sld_id in sld_id_lst:
-            rid = sld_id.get(f"{{{R_NS}}}id")
-            fname = rid_to_file.get(rid, "")
-            if fname not in keep_slides:
-                to_remove.append(sld_id)
-        for elem in to_remove:
-            sld_id_lst.remove(elem)
+        with open(path,"wb") as f:
+            f.write(etree.tostring(root, xml_declaration=True, encoding="UTF-8", standalone=True))
 
-    with open(prs_path, "wb") as f:
-        f.write(etree.tostring(prs_root, xml_declaration=True, encoding="UTF-8", standalone=True))
+    with open(prs_path,"wb")  as f:
+        f.write(etree.tostring(prs_root,  xml_declaration=True, encoding="UTF-8", standalone=True))
+    with open(rels_path,"wb") as f:
+        f.write(etree.tostring(rels_root, xml_declaration=True, encoding="UTF-8", standalone=True))
 
-    # 5) 다시 zip으로 압축
     out_path = os.path.join(tmp_dir, f"{keyword}_발표자료.pptx")
-    with zipfile.ZipFile(out_path, "w", zipfile.ZIP_DEFLATED) as zout:
-        for root_dir, dirs, files in os.walk(unpacked):
+    with zipfile.ZipFile(out_path,"w",zipfile.ZIP_DEFLATED) as zout:
+        for rd, _, files in os.walk(unpacked):
             for file in files:
-                file_path = os.path.join(root_dir, file)
-                arcname = os.path.relpath(file_path, unpacked)
-                zout.write(file_path, arcname)
+                fp = os.path.join(rd,file)
+                zout.write(fp, os.path.relpath(fp, unpacked))
 
     return FileResponse(
         out_path,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
-        filename=f"{keyword}_발표자료.pptx"
+        filename=f"{keyword}_발표자료.pptx",
     )
 
-
 @app.get("/")
-def root():
-    return {"status": "ok", "service": "모듀이 PPT 생성 API"}
+def root(): return {"status":"ok","service":"모듀이 PPT 생성 API"}
+
+@app.get("/api/meeting")
+def meeting(): return {"message":"회의록 AI 엔드포인트"}
+
+@app.get("/api/output")
+def output_api(): return {"message":"산출물 AI 엔드포인트"}
