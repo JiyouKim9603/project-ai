@@ -37,92 +37,92 @@ def call_gpt(keyword):
     res = client.chat.completions.create(
         model="gpt-4o-mini",
         messages=[
-            {"role":"system","content":"""당신은 프레젠테이션 콘텐츠 작성 전문가입니다. 키워드를 받아 풍부하고 상세한 내용의 JSON을 생성하세요.
+            {"role":"system","content":"""당신은 프레젠테이션 콘텐츠 작성 전문가입니다. 키워드를 받아 JSON을 생성하세요.
 반드시 아래 규칙을 따르세요:
 1. JSON만 반환, 다른 텍스트 절대 금지
-2. 본문(body) 필드는 반드시 2~4문장으로 충분히 상세하게 작성
-3. 글자수 제한은 최대값이며, 가능한 최대한 채워서 작성
-4. 내용이 부실하거나 짧으면 안됨
+2. 글자수 제한은 반드시 지켜야 하는 최대값입니다. 초과하면 안됩니다
+3. 본문 필드는 2~3문장으로 작성
+4. 제목은 간결하고 핵심만 담아야 합니다
 
 {
   "cover": {
-    "title_line1": "제목 앞부분 (8자이내, 핵심 명사)",
-    "title_line2": "제목 뒷부분 (10자이내, 핵심 명사)",
-    "description": "발표 개요. 이 발표의 목적과 내용을 설명하는 완전한 문장 (50자이내)",
-    "subtitle": "부제목. 발표의 핵심을 한줄로 (25자이내)"
+    "title_line1": "제목 앞부분 (6자이내, 핵심 명사)",
+    "title_line2": "제목 뒷부분 (8자이내, 핵심 명사)",
+    "description": "발표 개요 (40자이내)",
+    "subtitle": "부제목 (20자이내)"
   },
   "overview": {
-    "title": "슬라이드 제목 (15자이내)",
-    "section_title": "핵심 주제를 명확하게 표현한 문구 (20자이내)",
-    "left_body": "왼쪽 본문. 주제의 배경과 현황을 3~4문장으로 상세하게 작성. 구체적 수치나 사례 포함 권장. 반드시 150자 이상 작성",
-    "right_body": "오른쪽 본문. 주제의 효과, 방법, 전망을 3~4문장으로 상세하게 작성. 구체적 내용 포함. 반드시 150자 이상 작성"
+    "title": "슬라이드 제목 (12자이내)",
+    "section_title": "핵심 주제 문구 (15자이내)",
+    "left_body": "왼쪽 본문. 2~3문장 상세 작성. 100자이상 150자이내",
+    "right_body": "오른쪽 본문. 2~3문장 상세 작성. 100자이상 150자이내"
   },
   "overview2": {
-    "title": "두번째 슬라이드 제목 (15자이내)",
-    "section_title": "두번째 핵심 주제 문구 (20자이내)",
-    "left_body": "왼쪽 본문. 첫번째 개요와 다른 관점으로 3~4문장 상세 작성. 반드시 150자 이상",
-    "right_body": "오른쪽 본문. 3~4문장 상세 작성. 반드시 150자 이상"
+    "title": "두번째 슬라이드 제목 (12자이내)",
+    "section_title": "두번째 핵심 주제 (15자이내)",
+    "left_body": "왼쪽 본문. 100자이상 150자이내",
+    "right_body": "오른쪽 본문. 100자이상 150자이내"
   },
   "cards": {
-    "title": "카드 슬라이드 제목 (15자이내)",
-    "card1_title": "카드1 핵심 키워드 (6자이내)",
-    "card1_body": "카드1 내용. 2~3문장으로 상세하게. 구체적 설명 포함. 반드시 70자 이상",
-    "card2_title": "카드2 핵심 키워드 (6자이내)",
-    "card2_body": "카드2 내용. 2~3문장으로 상세하게. 반드시 70자 이상",
-    "card3_title": "카드3 핵심 키워드 (6자이내)",
-    "card3_body": "카드3 내용. 2~3문장으로 상세하게. 반드시 70자 이상"
+    "title": "카드 슬라이드 제목 (12자이내)",
+    "card1_title": "카드1 키워드 (5자이내)",
+    "card1_body": "카드1 내용. 2문장. 60자이상 80자이내",
+    "card2_title": "카드2 키워드 (5자이내)",
+    "card2_body": "카드2 내용. 2문장. 60자이상 80자이내",
+    "card3_title": "카드3 키워드 (5자이내)",
+    "card3_body": "카드3 내용. 2문장. 60자이상 80자이내"
   },
   "keywords": {
-    "title": "키워드 슬라이드 제목 (15자이내)",
-    "label1": "분류 라벨1 (6자이내)",
-    "label2": "분류 라벨2 (6자이내)",
-    "label3": "분류 라벨3 (6자이내)",
-    "label4": "분류 라벨4 (6자이내)",
-    "keyword1": "핵심 키워드1 (6자이내)",
-    "keyword2": "핵심 키워드2 (6자이내)",
-    "keyword3": "핵심 키워드3 (6자이내)",
-    "keyword4": "핵심 키워드4 (6자이내)",
-    "summary": "전체 핵심을 요약하는 완전한 문장 (60자이내)"
+    "title": "키워드 슬라이드 제목 (12자이내)",
+    "label1": "라벨1 (5자이내)",
+    "label2": "라벨2 (5자이내)",
+    "label3": "라벨3 (5자이내)",
+    "label4": "라벨4 (5자이내)",
+    "keyword1": "키워드1 (5자이내)",
+    "keyword2": "키워드2 (5자이내)",
+    "keyword3": "키워드3 (5자이내)",
+    "keyword4": "키워드4 (5자이내)",
+    "summary": "핵심 요약 문장 (50자이내)"
   },
   "list": {
-    "title": "리스트 슬라이드 제목 (15자이내)",
-    "intro": "리스트 주제를 소개하는 완전한 문장 (60자이내)",
-    "item1": "첫번째 항목. 구체적으로 (30자이내)",
-    "item2": "두번째 항목. 구체적으로 (30자이내)",
-    "item3": "세번째 항목. 구체적으로 (30자이내)"
+    "title": "리스트 슬라이드 제목 (12자이내)",
+    "intro": "리스트 소개 문장 (45자이내)",
+    "item1": "항목1 (25자이내)",
+    "item2": "항목2 (25자이내)",
+    "item3": "항목3 (25자이내)"
   },
   "analysis": {
-    "title": "분석 슬라이드 제목 (15자이내)",
-    "cause1_title": "원인1 키워드 (4자이내)",
-    "cause1_body": "원인1 상세 설명. 구체적으로 1~2문장 (45자이내)",
-    "cause2_title": "원인2 키워드 (4자이내)",
-    "cause2_body": "원인2 상세 설명. 구체적으로 1~2문장 (45자이내)",
-    "cause3_title": "원인3 키워드 (4자이내)",
-    "cause3_body": "원인3 상세 설명. 구체적으로 1~2문장 (45자이내)",
-    "result": "결과 핵심 키워드 (6자이내)",
-    "result_body": "결과 상세 설명. 2문장으로 구체적으로 (70자이내)"
+    "title": "분석 슬라이드 제목 (12자이내)",
+    "cause1_title": "원인1 (4자이내)",
+    "cause1_body": "원인1 설명 (35자이내)",
+    "cause2_title": "원인2 (4자이내)",
+    "cause2_body": "원인2 설명 (35자이내)",
+    "cause3_title": "원인3 (4자이내)",
+    "cause3_body": "원인3 설명 (35자이내)",
+    "result": "결과 키워드 (5자이내)",
+    "result_body": "결과 설명. 2문장 (55자이내)"
   },
   "cards4": {
-    "title": "4카드 슬라이드 제목 (15자이내)",
-    "card1_title": "카드1 키워드 (6자이내)",
-    "card2_title": "카드2 키워드 (6자이내)",
-    "card3_title": "카드3 키워드 (6자이내)",
-    "card4_title": "카드4 키워드 (6자이내)",
-    "card1_body": "카드1 설명. 2문장으로 구체적으로 (50자이내)",
-    "card2_body": "카드2 설명. 2문장으로 구체적으로 (50자이내)",
-    "card3_body": "카드3 설명. 2문장으로 구체적으로 (50자이내)",
-    "card4_body": "카드4 설명. 2문장으로 구체적으로 (50자이내)"
+    "title": "4카드 슬라이드 제목 (12자이내)",
+    "card1_title": "카드1 키워드 (5자이내)",
+    "card2_title": "카드2 키워드 (5자이내)",
+    "card3_title": "카드3 키워드 (5자이내)",
+    "card4_title": "카드4 키워드 (5자이내)",
+    "card1_body": "카드1 설명. 1~2문장 (40자이내)",
+    "card2_body": "카드2 설명. 1~2문장 (40자이내)",
+    "card3_body": "카드3 설명. 1~2문장 (40자이내)",
+    "card4_body": "카드4 설명. 1~2문장 (40자이내)"
   },
   "timeline": {
-    "title": "타임라인 슬라이드 제목 (15자이내)",
-    "step1_title": "1단계 제목 (8자이내)",
-    "step2_title": "2단계 제목 (8자이내)",
-    "step3_title": "3단계 제목 (8자이내)",
-    "step4_title": "4단계 제목 (8자이내)",
-    "step1_body": "1단계 설명. 구체적으로 (30자이내)",
-    "step2_body": "2단계 설명. 구체적으로 (30자이내)",
-    "step3_body": "3단계 설명. 구체적으로 (30자이내)",
-    "step4_body": "4단계 설명. 구체적으로 (30자이내)"
+    "title": "타임라인 슬라이드 제목 (12자이내)",
+    "step1_title": "1단계 제목 (7자이내)",
+    "step2_title": "2단계 제목 (7자이내)",
+    "step3_title": "3단계 제목 (7자이내)",
+    "step4_title": "4단계 제목 (7자이내)",
+    "step1_body": "1단계 설명 (25자이내)",
+    "step2_body": "2단계 설명 (25자이내)",
+    "step3_body": "3단계 설명 (25자이내)",
+    "step4_body": "4단계 설명 (25자이내)"
   }
 }"""},
             {"role":"user","content":f"키워드: {keyword}"}
@@ -165,104 +165,104 @@ def st(root, name, val): set_text(root, name, val)
 
 def fill_cover(root, data, keyword, team, today):
     c = data.get("cover", {})
-    st(root,"TextBox 5",  s(c,"title_line1",8))
-    st(root,"TextBox 6",  s(c,"title_line2",10))
-    st(root,"TextBox 7",  s(c,"description",50))
-    st(root,"TextBox 8",  s(c,"subtitle",25))
+    st(root,"TextBox 5",  s(c,"title_line1",6))
+    st(root,"TextBox 6",  s(c,"title_line2",8))
+    st(root,"TextBox 7",  s(c,"description",40))
+    st(root,"TextBox 8",  s(c,"subtitle",20))
     st(root,"TextBox 9",  f"팀  {team}")
     st(root,"TextBox 10", today)
     st(root,"TextBox 11", "modui.ai")
 
 def fill_overview(root, dk, data, label):
     o = data.get(dk, {})
-    st(root,"TextBox 19", s(o,"title",15))
+    st(root,"TextBox 19", s(o,"title",12))
     st(root,"TextBox 20", "")
     st(root,"TextBox 21", label)
-    st(root,"TextBox 22", s(o,"left_body",200))
-    st(root,"TextBox 23", s(o,"right_body",200))
-    st(root,"TextBox 24", s(o,"section_title",20))
+    st(root,"TextBox 22", s(o,"left_body",150))
+    st(root,"TextBox 23", s(o,"right_body",150))
+    st(root,"TextBox 24", s(o,"section_title",15))
 
 def fill_cards(root, dk, data, label):
     c = data.get(dk, {})
-    st(root,"TextBox 17", s(c,"title",15))
+    st(root,"TextBox 17", s(c,"title",12))
     st(root,"TextBox 18", "")
     st(root,"TextBox 19", label)
-    st(root,"TextBox 29", s(c,"card1_body",100))
-    st(root,"TextBox 30", s(c,"card2_body",100))
-    st(root,"TextBox 31", s(c,"card3_body",100))
-    st(root,"TextBox 32", s(c,"card1_title",6))
-    st(root,"TextBox 33", s(c,"card2_title",6))
-    st(root,"TextBox 34", s(c,"card3_title",6))
+    st(root,"TextBox 29", s(c,"card1_body",80))
+    st(root,"TextBox 30", s(c,"card2_body",80))
+    st(root,"TextBox 31", s(c,"card3_body",80))
+    st(root,"TextBox 32", s(c,"card1_title",5))
+    st(root,"TextBox 33", s(c,"card2_title",5))
+    st(root,"TextBox 34", s(c,"card3_title",5))
     st(root,"TextBox 38", "Card 01")
     st(root,"TextBox 39", "Card 02")
     st(root,"TextBox 40", "Card 03")
 
 def fill_keywords(root, dk, data, label):
     k = data.get(dk, {})
-    st(root,"TextBox 17", s(k,"title",15))
+    st(root,"TextBox 17", s(k,"title",12))
     st(root,"TextBox 18", "")
     st(root,"TextBox 19", label)
-    st(root,"TextBox 39", s(k,"label1",6))
-    st(root,"TextBox 40", s(k,"label2",6))
-    st(root,"TextBox 41", s(k,"label3",6))
-    st(root,"TextBox 42", s(k,"label4",6))
-    st(root,"TextBox 43", s(k,"keyword1",6))
-    st(root,"TextBox 44", s(k,"keyword2",6))
-    st(root,"TextBox 45", s(k,"keyword3",6))
-    st(root,"TextBox 46", s(k,"keyword4",6))
-    st(root,"TextBox 51", s(k,"summary",60))
+    st(root,"TextBox 39", s(k,"label1",5))
+    st(root,"TextBox 40", s(k,"label2",5))
+    st(root,"TextBox 41", s(k,"label3",5))
+    st(root,"TextBox 42", s(k,"label4",5))
+    st(root,"TextBox 43", s(k,"keyword1",5))
+    st(root,"TextBox 44", s(k,"keyword2",5))
+    st(root,"TextBox 45", s(k,"keyword3",5))
+    st(root,"TextBox 46", s(k,"keyword4",5))
+    st(root,"TextBox 51", s(k,"summary",50))
 
 def fill_list(root, dk, data, label):
     li = data.get(dk, {})
-    st(root,"TextBox 17", s(li,"title",15))
+    st(root,"TextBox 17", s(li,"title",12))
     st(root,"TextBox 18", "")
     st(root,"TextBox 19", label)
-    st(root,"TextBox 20", s(li,"intro",60))
-    st(root,"TextBox 30", s(li,"item1",30))
-    st(root,"TextBox 31", s(li,"item2",30))
-    st(root,"TextBox 32", s(li,"item3",30))
+    st(root,"TextBox 20", s(li,"intro",45))
+    st(root,"TextBox 30", s(li,"item1",25))
+    st(root,"TextBox 31", s(li,"item2",25))
+    st(root,"TextBox 32", s(li,"item3",25))
 
 def fill_analysis(root, dk, data, label):
     a = data.get(dk, {})
-    st(root,"TextBox 17", s(a,"title",15))
+    st(root,"TextBox 17", s(a,"title",12))
     st(root,"TextBox 18", "")
     st(root,"TextBox 19", label)
-    st(root,"TextBox 33", s(a,"cause1_body",45))
-    st(root,"TextBox 34", s(a,"cause2_body",45))
-    st(root,"TextBox 35", s(a,"cause3_body",45))
+    st(root,"TextBox 33", s(a,"cause1_body",35))
+    st(root,"TextBox 34", s(a,"cause2_body",35))
+    st(root,"TextBox 35", s(a,"cause3_body",35))
     st(root,"TextBox 48", s(a,"cause1_title",4))
     st(root,"TextBox 49", s(a,"cause2_title",4))
     st(root,"TextBox 50", s(a,"cause3_title",4))
-    st(root,"TextBox 51", s(a,"result_body",70))
-    st(root,"TextBox 52", s(a,"result",6))
+    st(root,"TextBox 51", s(a,"result_body",55))
+    st(root,"TextBox 52", s(a,"result",5))
 
 def fill_cards4(root, dk, data, label):
     c = data.get(dk, {})
-    st(root,"TextBox 17", s(c,"title",15))
+    st(root,"TextBox 17", s(c,"title",12))
     st(root,"TextBox 18", "")
     st(root,"TextBox 19", label)
-    st(root,"TextBox 32", s(c,"card1_title",6))
-    st(root,"TextBox 33", s(c,"card2_title",6))
-    st(root,"TextBox 34", s(c,"card3_title",6))
-    st(root,"TextBox 35", s(c,"card4_title",6))
-    st(root,"TextBox 36", s(c,"card1_body",50))
-    st(root,"TextBox 37", s(c,"card2_body",50))
-    st(root,"TextBox 38", s(c,"card3_body",50))
-    st(root,"TextBox 39", s(c,"card4_body",50))
+    st(root,"TextBox 32", s(c,"card1_title",5))
+    st(root,"TextBox 33", s(c,"card2_title",5))
+    st(root,"TextBox 34", s(c,"card3_title",5))
+    st(root,"TextBox 35", s(c,"card4_title",5))
+    st(root,"TextBox 36", s(c,"card1_body",40))
+    st(root,"TextBox 37", s(c,"card2_body",40))
+    st(root,"TextBox 38", s(c,"card3_body",40))
+    st(root,"TextBox 39", s(c,"card4_body",40))
 
 def fill_timeline(root, dk, data, label):
     t = data.get(dk, {})
-    st(root,"TextBox 17", s(t,"title",15))
+    st(root,"TextBox 17", s(t,"title",12))
     st(root,"TextBox 18", "")
     st(root,"TextBox 19", label)
-    st(root,"TextBox 25", s(t,"step1_title",8))
-    st(root,"TextBox 28", s(t,"step2_title",8))
-    st(root,"TextBox 30", s(t,"step3_title",8))
-    st(root,"TextBox 32", s(t,"step4_title",8))
-    st(root,"TextBox 26", s(t,"step1_body",30))
-    st(root,"TextBox 40", s(t,"step2_body",30))
-    st(root,"TextBox 31", s(t,"step3_body",30))
-    st(root,"TextBox 42", s(t,"step4_body",30))
+    st(root,"TextBox 25", s(t,"step1_title",7))
+    st(root,"TextBox 28", s(t,"step2_title",7))
+    st(root,"TextBox 30", s(t,"step3_title",7))
+    st(root,"TextBox 32", s(t,"step4_title",7))
+    st(root,"TextBox 26", s(t,"step1_body",25))
+    st(root,"TextBox 40", s(t,"step2_body",25))
+    st(root,"TextBox 31", s(t,"step3_body",25))
+    st(root,"TextBox 41", s(t,"step4_body",25))
 
 def fill_outro(root, team, today):
     st(root,"TextBox 7",  "")
