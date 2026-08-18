@@ -43,6 +43,8 @@ def call_gpt(keyword):
 2. 글자수 제한은 반드시 지켜야 하는 최대값입니다. 초과하면 절대 안됩니다
 3. 본문 필드는 지정된 글자수를 최대한 채워서 작성
 4. 제목은 간결하고 핵심만 담아야 합니다
+5. 한자 사용 금지, 순한글 또는 영문만 사용
+6. 카드 제목은 핵심 키워드로 작성, 숫자 나열(이점1, 항목2 등) 절대 금지
 
 {
   "cover": {
@@ -234,7 +236,7 @@ def fill_analysis(root, dk, data, label):
     st(root,"TextBox 49", s(a,"cause2_title",4))
     st(root,"TextBox 50", s(a,"cause3_title",4))
     st(root,"TextBox 51", s(a,"result_body",55))
-    st(root,"TextBox 52", s(a,"result",4))
+    st(root,"TextBox 52", "분석 결과")
 
 def fill_cards4(root, dk, data, label):
     c = data.get(dk, {})

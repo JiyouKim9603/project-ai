@@ -227,3 +227,29 @@ body {
   color: #5B5BD6;
   background: #ededff;
 }
+
+.progress-wrap {
+  margin-top: 20px;
+  text-align: center;
+}
+.progress-msg {
+  font-size: 14px;
+  color: #666;
+  margin-bottom: 8px;
+}
+.progress-bar-bg {
+  background: #eee;
+  border-radius: 8px;
+  height: 12px;
+  overflow: hidden;
+}
+.progress-bar-fill {
+  background: #c0392b;
+  height: 100%;
+  border-radius: 8px;
+}
+.progress-pct {
+  font-size: 13px;
+  color: #999;
+  margin-top: 6px;
+}

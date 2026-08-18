@@ -9,9 +9,30 @@ function OutputAI() {
   const [ais, setAis]             = useState({ gpt: true, claude: false, gemini: false, qwen: false });
   const [loading, setLoading]     = useState(false);
   const [slideCount, setSlideCount] = useState(5);
+  const [progress, setProgress]   = useState(0);
+  const [progressMsg, setProgressMsg] = useState('');
 
   const toggleFormat = (key) => setFormats(prev => ({ ...prev, [key]: !prev[key] }));
   const toggleAi     = (key) => setAis(prev => ({ ...prev, [key]: !prev[key] }));
+
+  const STEPS = [
+    { pct: 10, msg: '키워드 분석 중...' },
+    { pct: 30, msg: 'AI가 콘텐츠 생성 중...' },
+    { pct: 60, msg: '슬라이드 구성 중...' },
+    { pct: 80, msg: 'PPT 파일 조립 중...' },
+    { pct: 95, msg: '거의 다 됐어요...' },
+  ];
+
+  const startProgress = () => {
+    let step = 0;
+    const timer = setInterval(() => {
+      if (step >= STEPS.length) { clearInterval(timer); return; }
+      setProgress(STEPS[step].pct);
+      setProgressMsg(STEPS[step].msg);
+      step++;
+    }, 1800);
+    return timer;
+  };
 
   const downloadPPT = async (kw) => {
     const res = await fetch('http://76.13.182.154:8000/generate-ppt', {
@@ -34,12 +55,19 @@ function OutputAI() {
   const handleGenerate = async () => {
     if (!keyword.trim()) return alert('키워드를 입력해주세요!');
     setLoading(true);
+    setProgress(0);
+    setProgressMsg('');
+    const timer = startProgress();
     try {
       if (formats.ppt) await downloadPPT(keyword);
+      setProgress(100);
+      setProgressMsg('완료!');
     } catch (err) {
       alert('오류가 발생했습니다: ' + err.message);
     } finally {
+      clearInterval(timer);
       setLoading(false);
+      setTimeout(() => { setProgress(0); setProgressMsg(''); }, 2000);
     }
   };
 
@@ -132,6 +160,20 @@ function OutputAI() {
         <button className="generate-btn" onClick={handleGenerate} disabled={loading}>
           {loading ? '⏳ 생성 중...' : '✨ 문서 자동 생성'}
         </button>
+
+        {/* 진행상황 */}
+        {loading && (
+          <div className="progress-wrap">
+            <div className="progress-msg">{progressMsg}</div>
+            <div className="progress-bar-bg">
+              <div
+                className="progress-bar-fill"
+                style={{ width: `${progress}%`, transition: 'width 0.8s ease' }}
+              />
+            </div>
+            <div className="progress-pct">{progress}%</div>
+          </div>
+        )}
       </main>
     </div>
   );
