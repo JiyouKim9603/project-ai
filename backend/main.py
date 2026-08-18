@@ -40,37 +40,37 @@ def call_gpt(keyword):
             {"role":"system","content":"""당신은 프레젠테이션 콘텐츠 작성 전문가입니다. 키워드를 받아 JSON을 생성하세요.
 반드시 아래 규칙을 따르세요:
 1. JSON만 반환, 다른 텍스트 절대 금지
-2. 글자수 제한은 반드시 지켜야 하는 최대값입니다. 초과하면 안됩니다
-3. 본문 필드는 2~3문장으로 작성
+2. 글자수 제한은 반드시 지켜야 하는 최대값입니다. 초과하면 절대 안됩니다
+3. 본문 필드는 지정된 글자수를 최대한 채워서 작성
 4. 제목은 간결하고 핵심만 담아야 합니다
 
 {
   "cover": {
-    "title_line1": "제목 앞부분 (6자이내, 핵심 명사)",
-    "title_line2": "제목 뒷부분 (8자이내, 핵심 명사)",
+    "title_line1": "제목 앞부분 (6자이내)",
+    "title_line2": "제목 뒷부분 (8자이내)",
     "description": "발표 개요 (40자이내)",
     "subtitle": "부제목 (20자이내)"
   },
   "overview": {
     "title": "슬라이드 제목 (12자이내)",
     "section_title": "핵심 주제 문구 (15자이내)",
-    "left_body": "왼쪽 본문. 2~3문장 상세 작성. 100자이상 150자이내",
-    "right_body": "오른쪽 본문. 2~3문장 상세 작성. 100자이상 150자이내"
+    "left_body": "왼쪽 본문. 3~4문장. 구체적 수치나 사례 포함. 반드시 180자 이상 200자 이내",
+    "right_body": "오른쪽 본문. 3~4문장. 구체적 내용 포함. 반드시 180자 이상 200자 이내"
   },
   "overview2": {
     "title": "두번째 슬라이드 제목 (12자이내)",
     "section_title": "두번째 핵심 주제 (15자이내)",
-    "left_body": "왼쪽 본문. 100자이상 150자이내",
-    "right_body": "오른쪽 본문. 100자이상 150자이내"
+    "left_body": "왼쪽 본문. 3~4문장. 반드시 180자 이상 200자 이내",
+    "right_body": "오른쪽 본문. 3~4문장. 반드시 180자 이상 200자 이내"
   },
   "cards": {
     "title": "카드 슬라이드 제목 (12자이내)",
     "card1_title": "카드1 키워드 (5자이내)",
-    "card1_body": "카드1 내용. 2문장. 60자이상 80자이내",
+    "card1_body": "카드1 내용. 2~3문장. 70자이상 80자이내",
     "card2_title": "카드2 키워드 (5자이내)",
-    "card2_body": "카드2 내용. 2문장. 60자이상 80자이내",
+    "card2_body": "카드2 내용. 2~3문장. 70자이상 80자이내",
     "card3_title": "카드3 키워드 (5자이내)",
-    "card3_body": "카드3 내용. 2문장. 60자이상 80자이내"
+    "card3_body": "카드3 내용. 2~3문장. 70자이상 80자이내"
   },
   "keywords": {
     "title": "키워드 슬라이드 제목 (12자이내)",
@@ -99,8 +99,8 @@ def call_gpt(keyword):
     "cause2_body": "원인2 설명 (35자이내)",
     "cause3_title": "원인3 (4자이내)",
     "cause3_body": "원인3 설명 (35자이내)",
-    "result": "결과 키워드 (5자이내)",
-    "result_body": "결과 설명. 2문장 (55자이내)"
+    "result": "결과 키워드 (4자이내)",
+    "result_body": "결과 설명. 2~3문장 (55자이내)"
   },
   "cards4": {
     "title": "4카드 슬라이드 제목 (12자이내)",
@@ -108,10 +108,10 @@ def call_gpt(keyword):
     "card2_title": "카드2 키워드 (5자이내)",
     "card3_title": "카드3 키워드 (5자이내)",
     "card4_title": "카드4 키워드 (5자이내)",
-    "card1_body": "카드1 설명. 1~2문장 (40자이내)",
-    "card2_body": "카드2 설명. 1~2문장 (40자이내)",
-    "card3_body": "카드3 설명. 1~2문장 (40자이내)",
-    "card4_body": "카드4 설명. 1~2문장 (40자이내)"
+    "card1_body": "카드1 설명. 2~3문장. 35자이상 40자이내",
+    "card2_body": "카드2 설명. 2~3문장. 35자이상 40자이내",
+    "card3_body": "카드3 설명. 2~3문장. 35자이상 40자이내",
+    "card4_body": "카드4 설명. 2~3문장. 35자이상 40자이내"
   },
   "timeline": {
     "title": "타임라인 슬라이드 제목 (12자이내)",
@@ -119,10 +119,10 @@ def call_gpt(keyword):
     "step2_title": "2단계 제목 (7자이내)",
     "step3_title": "3단계 제목 (7자이내)",
     "step4_title": "4단계 제목 (7자이내)",
-    "step1_body": "1단계 설명 (25자이내)",
-    "step2_body": "2단계 설명 (25자이내)",
-    "step3_body": "3단계 설명 (25자이내)",
-    "step4_body": "4단계 설명 (25자이내)"
+    "step1_body": "1단계 설명. 2문장. 35자이상 45자이내",
+    "step2_body": "2단계 설명. 2문장. 35자이상 45자이내",
+    "step3_body": "3단계 설명. 2문장. 35자이상 45자이내",
+    "step4_body": "4단계 설명. 2문장. 35자이상 45자이내"
   }
 }"""},
             {"role":"user","content":f"키워드: {keyword}"}
@@ -178,8 +178,8 @@ def fill_overview(root, dk, data, label):
     st(root,"TextBox 19", s(o,"title",12))
     st(root,"TextBox 20", "")
     st(root,"TextBox 21", label)
-    st(root,"TextBox 22", s(o,"left_body",150))
-    st(root,"TextBox 23", s(o,"right_body",150))
+    st(root,"TextBox 22", s(o,"left_body",200))
+    st(root,"TextBox 23", s(o,"right_body",200))
     st(root,"TextBox 24", s(o,"section_title",15))
 
 def fill_cards(root, dk, data, label):
@@ -234,7 +234,7 @@ def fill_analysis(root, dk, data, label):
     st(root,"TextBox 49", s(a,"cause2_title",4))
     st(root,"TextBox 50", s(a,"cause3_title",4))
     st(root,"TextBox 51", s(a,"result_body",55))
-    st(root,"TextBox 52", s(a,"result",5))
+    st(root,"TextBox 52", s(a,"result",4))
 
 def fill_cards4(root, dk, data, label):
     c = data.get(dk, {})
@@ -259,10 +259,10 @@ def fill_timeline(root, dk, data, label):
     st(root,"TextBox 28", s(t,"step2_title",7))
     st(root,"TextBox 30", s(t,"step3_title",7))
     st(root,"TextBox 32", s(t,"step4_title",7))
-    st(root,"TextBox 26", s(t,"step1_body",25))
-    st(root,"TextBox 40", s(t,"step2_body",25))
-    st(root,"TextBox 31", s(t,"step3_body",25))
-    st(root,"TextBox 41", s(t,"step4_body",25))
+    st(root,"TextBox 26", s(t,"step1_body",45))
+    st(root,"TextBox 40", s(t,"step2_body",45))
+    st(root,"TextBox 31", s(t,"step3_body",45))
+    st(root,"TextBox 41", s(t,"step4_body",45))
 
 def fill_outro(root, team, today):
     st(root,"TextBox 7",  "")
