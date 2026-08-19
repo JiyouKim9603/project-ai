@@ -1,0 +1,187 @@
+.meeting {
+  min-height: 100vh;
+  background: #f5f5f7;
+  font-family: 'Pretendard', 'Apple SD Gothic Neo', sans-serif;
+}
+
+/* nav - OutputAI와 동일 */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 16px 32px;
+  background: white;
+  border-bottom: 1px solid #e5e7eb;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+.nav-logo { font-size: 20px; font-weight: 700; color: #1a1a1a; text-decoration: none; }
+.nav-logo span { color: #6366f1; }
+.nav-links { display: flex; gap: 24px; }
+.nav-links a { color: #6b7280; text-decoration: none; font-size: 14px; }
+.nav-links a:hover { color: #1a1a1a; }
+
+.meeting-main {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 40px 20px 80px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.meeting-header { text-align: center; margin-bottom: 8px; }
+.meeting-header h1 { font-size: 28px; font-weight: 700; color: #1a1a1a; }
+.meeting-header p  { color: #6b7280; margin-top: 8px; }
+
+/* 입력 카드 */
+.input-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.input-card h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.input-card p  { font-size: 13px; color: #9ca3af; margin-bottom: 12px; }
+
+.meeting-info-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.info-field { display: flex; flex-direction: column; gap: 6px; }
+.info-field.full-width { grid-column: 1 / -1; }
+.info-field label { font-size: 13px; font-weight: 500; color: #374151; }
+
+.keyword-input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 14px;
+  outline: none;
+  box-sizing: border-box;
+}
+.keyword-input:focus { border-color: #6366f1; }
+
+/* 업로드 영역 */
+.upload-area {
+  border: 2px dashed #d1d5db;
+  border-radius: 12px;
+  padding: 32px;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.upload-area:hover { border-color: #6366f1; background: #f5f5ff; }
+.upload-area.has-file { border-color: #6366f1; background: #f5f5ff; border-style: solid; }
+
+.upload-placeholder .upload-icon { font-size: 32px; }
+.upload-placeholder p { margin: 8px 0 0; color: #6b7280; font-size: 14px; }
+.upload-placeholder .upload-sub { font-size: 12px; color: #9ca3af; }
+
+.file-info { display: flex; align-items: center; gap: 8px; justify-content: center; }
+.file-icon { font-size: 24px; }
+.file-name { font-weight: 500; color: #1a1a1a; }
+.file-size { color: #9ca3af; font-size: 13px; }
+
+/* 생성 버튼 */
+.generate-btn {
+  width: 100%;
+  padding: 16px;
+  background: #6366f1;
+  color: white;
+  border: none;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.generate-btn:hover:not(:disabled) { background: #4f46e5; }
+.generate-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* 진행상황 */
+.progress-wrap { background: white; border-radius: 16px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,0.06); }
+.progress-msg  { font-size: 14px; color: #6b7280; margin-bottom: 10px; text-align: center; }
+.progress-bar-bg   { background: #f3f4f6; border-radius: 999px; height: 8px; overflow: hidden; }
+.progress-bar-fill { background: #6366f1; height: 100%; border-radius: 999px; }
+.progress-pct  { text-align: right; font-size: 12px; color: #9ca3af; margin-top: 4px; }
+
+/* 결과 섹션 */
+.result-section { display: flex; flex-direction: column; gap: 16px; margin-top: 8px; }
+
+.result-header-card {
+  background: #6366f1;
+  border-radius: 16px;
+  padding: 24px;
+  color: white;
+}
+.result-header-card h2 { font-size: 20px; font-weight: 700; margin-bottom: 12px; }
+.result-meta { display: flex; gap: 16px; font-size: 14px; opacity: 0.9; }
+
+.result-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+.result-card h3 { font-size: 15px; font-weight: 600; margin-bottom: 16px; color: #1a1a1a; }
+
+.result-card-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.ai-badge-small {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+.ai-badge-small.gpt { background: #d1fae5; color: #065f46; }
+.model-name { font-size: 13px; color: #9ca3af; }
+
+/* 안건 */
+.agenda-item {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.agenda-number {
+  width: 28px;
+  height: 28px;
+  background: #6366f1;
+  color: white;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+.agenda-content strong { display: block; font-size: 14px; margin-bottom: 4px; }
+.agenda-content p { font-size: 13px; color: #6b7280; margin: 0; line-height: 1.6; }
+
+/* 요약 */
+.summary-text { font-size: 14px; color: #374151; line-height: 1.8; }
+
+/* 액션아이템 */
+.action-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 0;
+  border-bottom: 1px solid #f3f4f6;
+}
+.action-item:last-child { border-bottom: none; }
+.action-member  { font-size: 13px; font-weight: 600; color: #6366f1; min-width: 48px; }
+.action-content { font-size: 13px; color: #374151; flex: 1; }
+.action-deadline { font-size: 12px; color: #9ca3af; }
+
+/* STT 전문 */
+.transcript-card { background: #f9fafb; }
+.transcript-text { font-size: 13px; color: #6b7280; line-height: 1.8; white-space: pre-wrap; }

@@ -3,23 +3,21 @@ import { Link } from 'react-router-dom';
 import './OutputAI.css';
 
 function OutputAI() {
-  const [keyword, setKeyword]     = useState('');
-  const [team, setTeam]           = useState('딸깍');
-  const [formats, setFormats]     = useState({ ppt: true, word: false, pdf: false });
-  const [ais, setAis]             = useState({ gpt: true, claude: false, gemini: false, qwen: false });
-  const [loading, setLoading]     = useState(false);
-  const [slideCount, setSlideCount] = useState(5);
-  const [progress, setProgress]   = useState(0);
+  const [keyword, setKeyword]   = useState('');
+  const [team, setTeam]         = useState('딸깍');
+  const [formats, setFormats]   = useState({ ppt: true, word: false, pdf: false });
+  const [loading, setLoading]   = useState(false);
+  const [slideCount]            = useState(10);
+  const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState('');
 
   const toggleFormat = (key) => setFormats(prev => ({ ...prev, [key]: !prev[key] }));
-  const toggleAi     = (key) => setAis(prev => ({ ...prev, [key]: !prev[key] }));
 
   const STEPS = [
     { pct: 10, msg: '키워드 분석 중...' },
     { pct: 30, msg: 'AI가 콘텐츠 생성 중...' },
     { pct: 60, msg: '슬라이드 구성 중...' },
-    { pct: 80, msg: 'PPT 파일 조립 중...' },
+    { pct: 80, msg: '파일 조립 중...' },
     { pct: 95, msg: '거의 다 됐어요...' },
   ];
 
@@ -35,21 +33,47 @@ function OutputAI() {
   };
 
   const downloadPPT = async (kw) => {
-  //const res = await fetch('http://output-api.modui.cloud/generate-ppt', {
-    const res = await fetch('http://localhost:8000/generate-ppt', {
+    const res = await fetch('http://output-api.modui.cloud/generate-ppt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword: kw, team: team, slide_count: slideCount }),
     });
-    if (!res.ok) {
-      const err = await res.text();
-      throw new Error(err);
-    }
+    if (!res.ok) throw new Error(await res.text());
     const blob = await res.blob();
     const url  = URL.createObjectURL(blob);
     const a    = document.createElement('a');
     a.href     = url;
     a.download = `${kw}_발표자료.pptx`;
+    a.click();
+  };
+
+  const downloadWord = async (kw) => {
+    const res = await fetch('http://output-api.modui.cloud/generate-word', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword: kw, team: team }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${kw}_문서.docx`;
+    a.click();
+  };
+
+  const downloadPDF = async (kw) => {
+    const res = await fetch('http://output-api.modui.cloud/generate-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ keyword: kw, team: team }),
+    });
+    if (!res.ok) throw new Error(await res.text());
+    const blob = await res.blob();
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement('a');
+    a.href     = url;
+    a.download = `${kw}_문서.pdf`;
     a.click();
   };
 
@@ -60,7 +84,9 @@ function OutputAI() {
     setProgressMsg('');
     const timer = startProgress();
     try {
-      if (formats.ppt) await downloadPPT(keyword);
+      if (formats.ppt)  await downloadPPT(keyword);
+      if (formats.word) await downloadWord(keyword);
+      if (formats.pdf)  await downloadPDF(keyword);
       setProgress(100);
       setProgressMsg('완료!');
     } catch (err) {
@@ -77,7 +103,7 @@ function OutputAI() {
       <nav className="nav">
         <Link to="/" className="nav-logo">프로젝트<span>.ai</span></Link>
         <div className="nav-links">
-          <Link to="/meeting">회의록 AI</Link>
+          <Link to="/minutes">회의록 AI</Link>
           <Link to="/output">산출물 AI</Link>
         </div>
       </nav>
@@ -103,30 +129,13 @@ function OutputAI() {
         {/* 팀명 입력 */}
         <div className="input-card">
           <h2>팀명 입력</h2>
-          <p>PPT 하단에 표시될 팀 이름을 입력하세요</p>
+          <p>문서 하단에 표시될 팀 이름을 입력하세요</p>
           <input
             className="keyword-input"
             placeholder="예: 딸깍"
             value={team}
             onChange={(e) => setTeam(e.target.value)}
           />
-        </div>
-
-        {/* 슬라이드 수 선택 */}
-        <div className="input-card">
-          <h2>슬라이드 수</h2>
-          <p>생성할 슬라이드 수를 선택하세요</p>
-          <div className="slide-count-options">
-            {[3, 5, 7, 10].map((n) => (
-              <button
-                key={n}
-                className={`count-btn ${slideCount === n ? 'active' : ''}`}
-                onClick={() => setSlideCount(n)}
-              >
-                {n}장
-              </button>
-            ))}
-          </div>
         </div>
 
         {/* 출력 형식 선택 */}
@@ -143,17 +152,12 @@ function OutputAI() {
           </div>
         </div>
 
-        {/* AI 선택 */}
+        {/* AI 엔진 */}
         <div className="ai-select-card">
-          <h2>AI 엔진 선택</h2>
-          <p>문서 생성에 사용할 AI를 선택하세요</p>
+          <h2>AI 엔진</h2>
+          <p>현재 GPT-4o를 사용하여 문서를 생성합니다</p>
           <div className="ai-options">
-            {[['gpt', 'GPT-4o'], ['claude', 'Claude'], ['gemini', 'Gemini'], ['qwen', 'Qwen']].map(([key, label]) => (
-              <label className="ai-option" key={key}>
-                <input type="checkbox" checked={ais[key]} onChange={() => toggleAi(key)} />
-                <span className={`ai-badge ${key}`}>{label}</span>
-              </label>
-            ))}
+            <span className="ai-badge gpt">GPT-4o</span>
           </div>
         </div>
 

@@ -576,3 +576,341 @@ def meeting():
 @app.get("/api/output")
 def output_api():
     return {"message": "산출물 AI 엔드포인트"}
+
+
+# ──────────────────────────────────────────────
+# Word 생성
+# ──────────────────────────────────────────────
+class WordRequest(BaseModel):
+    keyword: str
+    team: Optional[str] = "딸깍"
+
+def call_gpt_word(keyword):
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    res = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": """당신은 전문 문서 작성 전문가입니다. 키워드를 받아 아래 JSON 형식으로 Word 문서 내용을 작성하세요.
+
+규칙:
+1. JSON만 반환, 다른 텍스트 절대 금지
+2. 모든 내용은 한국어(한글)로 작성
+3. 한자 사용 절대 금지
+4. 각 문단은 완결된 문장으로 작성
+5. 전문적이고 격식체(~합니다, ~입니다)로 작성
+
+{
+  "title": "문서 제목 (20자이내)",
+  "subtitle": "부제목 (30자이내)",
+  "overview": {
+    "heading": "1. 개요",
+    "background": "배경 설명. 3~4문장. 150자이내",
+    "purpose": "목적 설명. 2~3문장. 100자이내"
+  },
+  "main": {
+    "heading": "2. 핵심 내용",
+    "section1_title": "소제목1 (15자이내)",
+    "section1_body": "소제목1 본문. 3~4문장. 150자이내",
+    "section2_title": "소제목2 (15자이내)",
+    "section2_body": "소제목2 본문. 3~4문장. 150자이내",
+    "section3_title": "소제목3 (15자이내)",
+    "section3_body": "소제목3 본문. 3~4문장. 150자이내"
+  },
+  "analysis": {
+    "heading": "3. 분석",
+    "cause1": "원인1. 2~3문장. 100자이내",
+    "cause2": "원인2. 2~3문장. 100자이내",
+    "cause3": "원인3. 2~3문장. 100자이내",
+    "result": "분석 결과. 3~4문장. 150자이내"
+  },
+  "conclusion": {
+    "heading": "4. 결론",
+    "summary": "핵심 요약. 3~4문장. 150자이내",
+    "expected": "기대효과. 2~3문장. 100자이내",
+    "one_line_summary": "이 보고서 전체를 한 문장으로 요약. 50자이내"
+  }
+}"""},
+            {"role": "user", "content": f"키워드: {keyword}"}
+        ]
+    )
+    clean = re.sub(r"```json|```", "", res.choices[0].message.content).strip()
+    return json.loads(clean)
+
+def create_word(keyword, team, today, data):
+    import copy
+    from docx import Document
+    from docx.oxml.ns import qn
+
+    TEMPLATE_PATH_WORD = os.path.join(os.path.dirname(__file__), "template_word.docx")
+    doc = Document(TEMPLATE_PATH_WORD)
+
+    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
+
+    def replace_run_text(run_elem, new_text):
+        for t in run_elem.iter(f"{{{W}}}t"):
+            t.text = new_text
+            break
+
+    def get_txbx_text(txbx):
+        return ''.join(
+            t.text or ''
+            for t in txbx.iter(f"{{{W}}}t")
+        ).strip()
+
+    # ── TextBox 교체 (제목, 팀명) ──
+    for txbx in doc.element.body.iter(f"{{{WPS}}}txbx"):
+        text = get_txbx_text(txbx)
+        paras_tb = list(txbx.iter(f"{{{W}}}p"))
+        runs_with_text = [p for p in paras_tb if list(p.iter(f"{{{W}}}r"))]
+
+        if 'Letter of Intent' in text or 'Purchase' in text:
+            # 모든 t 비우기
+            for t in txbx.iter(f"{{{W}}}t"):
+                t.text = ''
+            # run이 있는 단락 중 첫번째 → title, 두번째 → subtitle
+            if len(runs_with_text) >= 2:
+                ts0 = list(runs_with_text[0].iter(f"{{{W}}}t"))
+                if ts0: ts0[0].text = data["title"]
+                ts1 = list(runs_with_text[1].iter(f"{{{W}}}t"))
+                if ts1: ts1[0].text = data["subtitle"]
+            elif len(runs_with_text) == 1:
+                ts0 = list(runs_with_text[0].iter(f"{{{W}}}t"))
+                if ts0: ts0[0].text = data["title"]
+
+        elif 'WEBERSTEIN' in text.upper():
+            for t in txbx.iter(f"{{{W}}}t"):
+                t.text = team.upper()
+                break
+
+    # ── 줄바꿈 포함 run 생성 헬퍼 ──
+    from lxml import etree
+    import copy
+
+    def mk_run_br(para, text, bold=False, base_rPr=None):
+        lines = text.split('\n')
+        for i, line in enumerate(lines):
+            r = etree.SubElement(para._element, f"{{{W}}}r")
+            if base_rPr is not None:
+                rp = copy.deepcopy(base_rPr)
+                b_el = rp.find(f"{{{W}}}b")
+                if bold and b_el is None:
+                    etree.SubElement(rp, f"{{{W}}}b")
+                elif not bold and b_el is not None:
+                    rp.remove(b_el)
+                r.insert(0, rp)
+            t = etree.SubElement(r, f"{{{W}}}t")
+            t.set("{http://www.w3.org/XML/1998/namespace}space", "preserve")
+            t.text = line
+            if i < len(lines) - 1:
+                etree.SubElement(r, f"{{{W}}}br")
+
+    def get_base_rPr(para):
+        """MS Gothic 제외한 첫 번째 rPr 반환"""
+        for run in para.runs:
+            rPr = run._element.find(f"{{{W}}}rPr")
+            if rPr is not None:
+                fonts = rPr.find(f"{{{W}}}rFonts")
+                if fonts is not None:
+                    font = fonts.get(f"{{{W}}}ascii") or fonts.get(f"{{{W}}}eastAsia") or ""
+                    if "MS Gothic" not in font:
+                        return rPr
+                else:
+                    return rPr
+        return None
+
+    def clear_runs(para):
+        for r in list(para._element.findall(f"{{{W}}}r")):
+            para._element.remove(r)
+
+    # ── 본문 단락 교체 ──
+    paras = doc.paragraphs
+
+    # 날짜 (para 6)
+    if len(paras) > 6 and paras[6].runs:
+        paras[6].runs[0].text = today
+
+    # 배경 (para 7)
+    if len(paras) > 7:
+        para = paras[7]
+        rPr = get_base_rPr(para)
+        clear_runs(para)
+        mk_run_br(para, data["overview"]["background"], base_rPr=rPr)
+
+    # 목적 (para 10)
+    if len(paras) > 10:
+        para = paras[10]
+        rPr = get_base_rPr(para)
+        clear_runs(para)
+        mk_run_br(para, data["overview"]["purpose"], base_rPr=rPr)
+
+    # 핵심내용 (para 11)
+    if len(paras) > 11:
+        main = data["main"]
+        para = paras[11]
+        rPr = get_base_rPr(para)
+        clear_runs(para)
+        mk_run_br(para, main['section1_title'] + "\n", bold=True, base_rPr=rPr)
+        mk_run_br(para, main['section1_body'] + "\n\n", base_rPr=rPr)
+        mk_run_br(para, main['section2_title'] + "\n", bold=True, base_rPr=rPr)
+        mk_run_br(para, main['section2_body'] + "\n\n", base_rPr=rPr)
+        mk_run_br(para, main['section3_title'] + "\n", bold=True, base_rPr=rPr)
+        mk_run_br(para, main['section3_body'], base_rPr=rPr)
+
+    # 분석+결론 (para 12)
+    if len(paras) > 12:
+        analysis = data["analysis"]
+        conclusion = data["conclusion"]
+        para = paras[12]
+        rPr = get_base_rPr(para)
+        clear_runs(para)
+        mk_run_br(para, "\n분석\n", bold=True, base_rPr=rPr)
+        mk_run_br(para, "• " + analysis['cause1'] + "\n", base_rPr=rPr)
+        mk_run_br(para, "• " + analysis['cause2'] + "\n", base_rPr=rPr)
+        mk_run_br(para, "• " + analysis['cause3'] + "\n", base_rPr=rPr)
+        mk_run_br(para, analysis['result'] + "\n\n", base_rPr=rPr)
+        mk_run_br(para, "결론\n", bold=True, base_rPr=rPr)
+        mk_run_br(para, conclusion['summary'] + "\n", base_rPr=rPr)
+        mk_run_br(para, conclusion['expected'], base_rPr=rPr)
+
+    # 핵심요약+팀정보 (para 13)
+    if len(paras) > 13:
+        para = paras[13]
+        rPr = get_base_rPr(para)
+        clear_runs(para)
+        one_line = data.get("conclusion", {}).get("one_line_summary", "")
+        mk_run_br(para, "\n핵심 요약\n", bold=True, base_rPr=rPr)
+        mk_run_br(para, one_line + "\n\n", base_rPr=rPr)
+        mk_run_br(para, f"팀  {team}  |  {today}  |  modui.ai", base_rPr=rPr)
+
+        return doc
+
+@app.post("/generate-word")
+def generate_word(req: WordRequest, background_tasks: BackgroundTasks):
+    keyword = req.keyword
+    team    = req.team or "딸깍"
+    today   = date.today().strftime("%Y.%m.%d")
+
+    data = call_gpt_word(keyword)
+    data = sanitize_data(data)
+
+    tmp_dir  = tempfile.mkdtemp()
+    out_path = os.path.join(tmp_dir, f"{keyword}_문서.docx")
+
+    doc = create_word(keyword, team, today, data)
+    doc.save(out_path)
+
+    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
+    return FileResponse(
+        out_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"{keyword}_문서.docx",
+        background=background_tasks,
+    )
+
+
+# ──────────────────────────────────────────────
+# PDF 생성 (Word → LibreOffice 변환)
+# ──────────────────────────────────────────────
+class PDFRequest(BaseModel):
+    keyword: str
+    team: Optional[str] = "딸깍"
+
+@app.post("/generate-pdf")
+def generate_pdf(req: PDFRequest, background_tasks: BackgroundTasks):
+    import subprocess
+
+    keyword = req.keyword
+    team    = req.team or "딸깍"
+    today   = date.today().strftime("%Y.%m.%d")
+
+    data = call_gpt_word(keyword)
+    data = sanitize_data(data)
+
+    tmp_dir   = tempfile.mkdtemp()
+    docx_path = os.path.join(tmp_dir, f"{keyword}_문서.docx")
+    pdf_path  = os.path.join(tmp_dir, f"{keyword}_문서.pdf")
+
+    doc = create_word(keyword, team, today, data)
+    doc.save(docx_path)
+
+    # LibreOffice로 PDF 변환
+    subprocess.run([
+        "libreoffice", "--headless", "--convert-to", "pdf",
+        "--outdir", tmp_dir, docx_path
+    ], check=True)
+
+    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"{keyword}_문서.pdf",
+        background=background_tasks,
+    )
+
+
+# ──────────────────────────────────────────────
+# 회의록 AI
+# ──────────────────────────────────────────────
+from fastapi import UploadFile, File, Form
+
+@app.post("/analyze-minutes")
+async def analyze_minutes(
+    file: UploadFile = File(...),
+    title: str = Form("회의"),
+    date: str = Form(""),
+    members: str = Form(""),
+):
+    import whisper
+
+    tmp_dir = tempfile.mkdtemp()
+    try:
+        # 음성 파일 저장
+        audio_path = os.path.join(tmp_dir, file.filename)
+        with open(audio_path, "wb") as f:
+            f.write(await file.read())
+
+        # Whisper STT
+        model = whisper.load_model("small")
+        result = model.transcribe(audio_path, language="ko")
+        transcript = result["text"]
+
+        # GPT 회의록 요약
+        client = openai.OpenAI(api_key=OPENAI_API_KEY)
+        res = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "system", "content": """당신은 회의록 작성 전문가입니다. 회의 내용을 분석하여 아래 JSON 형식으로 반환하세요.
+
+규칙:
+1. JSON만 반환, 다른 텍스트 절대 금지
+2. 모든 내용은 한국어로 작성
+3. 한자 사용 절대 금지
+
+{
+  "agenda": [
+    {"title": "안건 제목", "content": "안건 내용 요약"}
+  ],
+  "summary": "회의 전체 내용을 3줄로 요약",
+  "action_items": [
+    {"member": "담당자", "content": "해야 할 일", "deadline": "기한"}
+  ],
+  "next_agenda": "다음 회의에서 논의할 안건"
+}"""},
+                {"role": "user", "content": f"회의 제목: {title}\n참석자: {members}\n\n회의 내용:\n{transcript}"}
+            ]
+        )
+        clean = re.sub(r"```json|```", "", res.choices[0].message.content).strip()
+        summary = json.loads(clean)
+        summary = sanitize_data(summary)
+
+        return {
+            "title": title,
+            "date": date,
+            "members": members,
+            "transcript": transcript,
+            **summary
+        }
+
+    finally:
+        shutil.rmtree(tmp_dir, ignore_errors=True)
