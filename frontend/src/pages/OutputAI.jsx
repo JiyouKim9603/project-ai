@@ -35,8 +35,8 @@ function OutputAI() {
   };
 
   const downloadPPT = async (kw) => {
-  const res = await fetch('http://output-api.modui.cloud/generate-ppt', {
-    //const res = await fetch('http://localhost:8000/generate-ppt', {
+  //const res = await fetch('http://output-api.modui.cloud/generate-ppt', {
+    const res = await fetch('http://localhost:8000/generate-ppt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ keyword: kw, team: team, slide_count: slideCount }),

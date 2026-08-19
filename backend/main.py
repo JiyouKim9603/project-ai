@@ -126,10 +126,10 @@ def call_gpt(keyword):
   },
   "cards4": {
     "title": "4카드 슬라이드 제목 (15자이내)",
-    "card1_title": "카드1 키워드 (7자이내)",
-    "card2_title": "카드2 키워드 (7자이내)",
-    "card3_title": "카드3 키워드 (7자이내)",
-    "card4_title": "카드4 키워드 (7자이내)",
+    "card1_title": "카드1 키워드. 반드시 5자이내. 절대 초과금지",
+    "card2_title": "카드2 키워드. 반드시 5자이내. 절대 초과금지",
+    "card3_title": "카드3 키워드. 반드시 5자이내. 절대 초과금지",
+    "card4_title": "카드4 키워드. 반드시 5자이내. 절대 초과금지",
     "card1_body": "카드1 설명. 마침표로 끝나는 완결된 1~2문장. 50자이내",
     "card2_body": "카드2 설명. 마침표로 끝나는 완결된 1~2문장. 50자이내",
     "card3_body": "카드3 설명. 마침표로 끝나는 완결된 1~2문장. 50자이내",
@@ -141,10 +141,10 @@ def call_gpt(keyword):
     "step2_title": "2단계 제목 (7자이내)",
     "step3_title": "3단계 제목 (7자이내)",
     "step4_title": "4단계 제목 (7자이내)",
-    "step1_body": "1단계 설명. 마침표로 끝나는 완결된 1문장. 35자이내",
-    "step2_body": "2단계 설명. 마침표로 끝나는 완결된 1문장. 35자이내",
-    "step3_body": "3단계 설명. 마침표로 끝나는 완결된 1문장. 35자이내",
-    "step4_body": "4단계 설명. 마침표로 끝나는 완결된 1문장. 35자이내"
+    "step1_body": "1단계 설명. 구체적 내용 포함한 완결된 1문장. 마침표로 끝낼 것. 40자이내",
+    "step2_body": "2단계 설명. 구체적 내용 포함한 완결된 1문장. 마침표로 끝낼 것. 40자이내",
+    "step3_body": "3단계 설명. 구체적 내용 포함한 완결된 1문장. 마침표로 끝낼 것. 40자이내",
+    "step4_body": "4단계 설명. 구체적 내용 포함한 완결된 1문장. 마침표로 끝낼 것. 40자이내"
   }
 }"""},
             {"role": "user", "content": f"키워드: {keyword}"}
@@ -232,12 +232,8 @@ def st_s(d, k, lim):
     return (d.get(k) or "")[:lim]
 
 def st_title(root, name, val):
-    """
-    제목 전용 set_text.
-    TextBox가 슬라이드 오른쪽 끝에 붙어있어 렌더링 시 잘리는 현상 방지를 위해
-    텍스트 뒤에 공백 패딩을 추가한다.
-    """
-    set_text(root, name, val + "    ")
+    """제목 전용 set_text. 공백 패딩 1칸만 추가."""
+    set_text(root, name, val + " ")
 
 def _get_bodyPr(sp):
     """
@@ -301,8 +297,8 @@ def fill_cover(root, data, keyword, team, today):
     c = data.get("cover", {})
     st_title(root, "TextBox 5",  st_s(c, "title_line1", 10))
     st_title(root, "TextBox 6",  st_s(c, "title_line2", 12))
-    set_no_autofit(root, "TextBox 5")
-    set_no_autofit(root, "TextBox 6")
+    set_norm_autofit(root, "TextBox 5")
+    set_norm_autofit(root, "TextBox 6")
     st(root, "TextBox 7",  s(c, "description", 40))
     st(root, "TextBox 8",  s(c, "subtitle", 20))
     st(root, "TextBox 9",  f"팀  {team}")
@@ -312,7 +308,7 @@ def fill_cover(root, data, keyword, team, today):
 def fill_overview(root, dk, data, label):
     o = data.get(dk, {})
     st_title(root, "TextBox 19", st_s(o, "title", 15))
-    set_no_autofit(root, "TextBox 19")
+    set_norm_autofit(root, "TextBox 19")
     st(root, "TextBox 20", "")
     st(root, "TextBox 21", label)
     st(root, "TextBox 22", s(o, "left_body", 200))
@@ -322,7 +318,7 @@ def fill_overview(root, dk, data, label):
 def fill_cards(root, dk, data, label):
     c = data.get(dk, {})
     st_title(root, "TextBox 17", st_s(c, "title", 15))
-    set_no_autofit(root, "TextBox 17")
+    set_norm_autofit(root, "TextBox 17")
     st(root, "TextBox 18", "")
     st(root, "TextBox 19", label)
     st(root, "TextBox 29", s(c, "card1_body", 95))
@@ -334,13 +330,14 @@ def fill_cards(root, dk, data, label):
     st(root, "TextBox 38", "Card 01")
     st(root, "TextBox 39", "Card 02")
     st(root, "TextBox 40", "Card 03")
-    for box in ["TextBox 29", "TextBox 30", "TextBox 31"]:
+    for box in ["TextBox 29", "TextBox 30", "TextBox 31",
+                "TextBox 32", "TextBox 33", "TextBox 34"]:
         set_norm_autofit(root, box)
 
 def fill_keywords(root, dk, data, label):
     k = data.get(dk, {})
     st_title(root, "TextBox 17", st_s(k, "title", 12))
-    set_no_autofit(root, "TextBox 17")
+    set_norm_autofit(root, "TextBox 17")
     st(root, "TextBox 18", "")
     st(root, "TextBox 19", label)
     st(root, "TextBox 39", s(k, "label1", 5))
@@ -356,7 +353,7 @@ def fill_keywords(root, dk, data, label):
 def fill_list(root, dk, data, label):
     li = data.get(dk, {})
     st_title(root, "TextBox 17", st_s(li, "title", 15))
-    set_no_autofit(root, "TextBox 17")
+    set_norm_autofit(root, "TextBox 17")
     st(root, "TextBox 18", "")
     st(root, "TextBox 19", label)
     st(root, "TextBox 20", s(li, "intro", 45))
@@ -367,7 +364,7 @@ def fill_list(root, dk, data, label):
 def fill_analysis(root, dk, data, label):
     a = data.get(dk, {})
     st_title(root, "TextBox 17", st_s(a, "title", 15))
-    set_no_autofit(root, "TextBox 17")
+    set_norm_autofit(root, "TextBox 17")
     st(root, "TextBox 18", "")
     st(root, "TextBox 19", label)
     st(root, "TextBox 33", s(a, "cause1_body", 45))
@@ -384,34 +381,35 @@ def fill_analysis(root, dk, data, label):
 def fill_cards4(root, dk, data, label):
     c = data.get(dk, {})
     st_title(root, "TextBox 17", st_s(c, "title", 15))
-    set_no_autofit(root, "TextBox 17")
+    set_norm_autofit(root, "TextBox 17")
     st(root, "TextBox 18", "")
     st(root, "TextBox 19", label)
-    st(root, "TextBox 32", st_s(c, "card1_title", 7))
-    st(root, "TextBox 33", st_s(c, "card2_title", 7))
-    st(root, "TextBox 34", st_s(c, "card3_title", 7))
-    st(root, "TextBox 35", st_s(c, "card4_title", 7))
+    st(root, "TextBox 32", st_s(c, "card1_title", 5))
+    st(root, "TextBox 33", st_s(c, "card2_title", 5))
+    st(root, "TextBox 34", st_s(c, "card3_title", 5))
+    st(root, "TextBox 35", st_s(c, "card4_title", 5))
     st(root, "TextBox 36", s(c, "card1_body", 55))
     st(root, "TextBox 37", s(c, "card2_body", 55))
     st(root, "TextBox 38", s(c, "card3_body", 55))
     st(root, "TextBox 39", s(c, "card4_body", 55))
-    for box in ["TextBox 36", "TextBox 37", "TextBox 38", "TextBox 39"]:
+    for box in ["TextBox 32", "TextBox 33", "TextBox 34", "TextBox 35",
+                "TextBox 36", "TextBox 37", "TextBox 38", "TextBox 39"]:
         set_norm_autofit(root, box)
 
 def fill_timeline(root, dk, data, label):
     t = data.get(dk, {})
     st_title(root, "TextBox 17", st_s(t, "title", 15))
-    set_no_autofit(root, "TextBox 17")
+    set_norm_autofit(root, "TextBox 17")
     st(root, "TextBox 18", "")
     st(root, "TextBox 19", label)
     st(root, "TextBox 25", st_s(t, "step1_title", 7))
     st(root, "TextBox 28", st_s(t, "step2_title", 7))
     st(root, "TextBox 30", st_s(t, "step3_title", 7))
     st(root, "TextBox 32", st_s(t, "step4_title", 7))
-    st(root, "TextBox 26", s(t, "step1_body", 38))
-    st(root, "TextBox 40", s(t, "step2_body", 38))
-    st(root, "TextBox 31", s(t, "step3_body", 38))
-    st(root, "TextBox 41", s(t, "step4_body", 38))
+    st(root, "TextBox 26", s(t, "step1_body", 40))
+    st(root, "TextBox 40", s(t, "step2_body", 40))
+    st(root, "TextBox 31", s(t, "step3_body", 40))
+    st(root, "TextBox 41", s(t, "step4_body", 40))
     for box in ["TextBox 17", "TextBox 25", "TextBox 28", "TextBox 30", "TextBox 32"]:
         set_no_autofit(root, box)
     for box in ["TextBox 26", "TextBox 40", "TextBox 31", "TextBox 41"]:
