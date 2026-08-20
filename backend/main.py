@@ -1,12 +1,16 @@
-from fastapi import FastAPI, BackgroundTasks
+from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import openai, json, zipfile, shutil, os, re, tempfile
+import openai, json, zipfile, shutil, os, re, tempfile, math, subprocess
 from datetime import date
 from lxml import etree
 from typing import Optional
 
+
+# ──────────────────────────────────────────────
+# 앱 초기화
+# ──────────────────────────────────────────────
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -17,15 +21,14 @@ app.add_middleware(
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 TEMPLATE_PATH  = os.path.join(os.path.dirname(__file__), "template.pptx")
 
-NS  = "http://schemas.openxmlformats.org/drawingml/2006/main"          # drawingml
-PNS = "http://schemas.openxmlformats.org/presentationml/2006/main"     # presentationml
+NS      = "http://schemas.openxmlformats.org/drawingml/2006/main"
+PNS     = "http://schemas.openxmlformats.org/presentationml/2006/main"
 RELS_NS = "http://schemas.openxmlformats.org/package/2006/relationships"
 
-class PPTRequest(BaseModel):
-    keyword: str
-    team: Optional[str] = "딸깍"
-    slide_count: Optional[int] = 5
 
+# ──────────────────────────────────────────────
+# 슬라이드 콤보
+# ──────────────────────────────────────────────
 COMBO_3  = [("slide1.xml","cover"),("slide4.xml","cards"),("slide15.xml","outro")]
 COMBO_5  = [("slide1.xml","cover"),("slide2.xml","overview"),("slide4.xml","cards"),("slide8.xml","analysis"),("slide15.xml","outro")]
 COMBO_7  = [("slide1.xml","cover"),("slide2.xml","overview"),("slide4.xml","cards"),("slide7.xml","list"),("slide8.xml","analysis"),("slide10.xml","cards4"),("slide15.xml","outro")]
@@ -37,11 +40,9 @@ COMBOS   = {3:COMBO_3, 5:COMBO_5, 7:COMBO_7, 10:COMBO_10}
 # 한자 후처리
 # ──────────────────────────────────────────────
 def filter_hanja(text: str) -> str:
-    """CJK 통합 한자 범위 제거 (한글·영문·숫자·특수문자 유지)"""
     return re.sub(r'[\u4e00-\u9fff\u3400-\u4dbf\uf900-\ufaff]', '', text)
 
 def sanitize_data(data):
-    """재귀적으로 모든 문자열 값에서 한자 제거"""
     if isinstance(data, dict):
         return {k: sanitize_data(v) for k, v in data.items()}
     if isinstance(data, str):
@@ -50,8 +51,42 @@ def sanitize_data(data):
 
 
 # ──────────────────────────────────────────────
-# GPT 호출
+# Whisper 청크 분할 STT
 # ──────────────────────────────────────────────
+def transcribe_in_chunks(file_path, model, chunk_minutes=5):
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", file_path],
+        capture_output=True, text=True
+    )
+    duration = float(result.stdout.strip())
+    chunk_sec = chunk_minutes * 60
+    chunks = math.ceil(duration / chunk_sec)
+
+    full_text = ""
+    for i in range(chunks):
+        start = i * chunk_sec
+        chunk_path = f"{file_path}_chunk{i}.m4a"
+        subprocess.run([
+            "ffmpeg", "-i", file_path,
+            "-ss", str(start), "-t", str(chunk_sec),
+            "-c", "copy", chunk_path, "-y"
+        ], capture_output=True)
+        chunk_result = model.transcribe(chunk_path, language="ko")
+        full_text += chunk_result["text"] + " "
+        os.remove(chunk_path)
+
+    return full_text.strip()
+
+
+# ──────────────────────────────────────────────
+# GPT 호출 - PPT
+# ──────────────────────────────────────────────
+class PPTRequest(BaseModel):
+    keyword: str
+    team: Optional[str] = "딸깍"
+    slide_count: Optional[int] = 5
+
 def call_gpt(keyword):
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
     res = client.chat.completions.create(
@@ -167,11 +202,11 @@ def find_shape(root, name):
     return None
 
 def set_text(root, name, txt):
+    import copy
     sp = find_shape(root, name)
     if sp is None:
         return
 
-    # txBody: NS 먼저, 없으면 PNS
     txBody = sp.find(f"{{{NS}}}txBody")
     if txBody is None:
         txBody = sp.find(f"{{{PNS}}}txBody")
@@ -182,30 +217,24 @@ def set_text(root, name, txt):
     if not paras:
         return
 
-    # 첫 번째 단락 유지, 나머지 제거
     first_para = paras[0]
     for p in paras[1:]:
         txBody.remove(p)
 
-    # 첫 번째 단락의 기존 run에서 rPr(글자스타일) 추출
     runs = first_para.findall(f"{{{NS}}}r")
     saved_rPr = None
     for r in runs:
         rPr = r.find(f"{{{NS}}}rPr")
         if rPr is not None:
-            import copy
             saved_rPr = copy.deepcopy(rPr)
             break
 
-    # 기존 run 전부 제거
     for r in runs:
         first_para.remove(r)
-    # endParaRPr도 제거 (있으면)
     endPr = first_para.find(f"{{{NS}}}endParaRPr")
     if endPr is not None:
         first_para.remove(endPr)
 
-    # run 하나 새로 생성
     new_r = etree.SubElement(first_para, f"{{{NS}}}r")
     if saved_rPr is not None:
         new_r.append(saved_rPr)
@@ -217,10 +246,8 @@ def s(d, k, lim):
     text = (d.get(k) or "")[:lim]
     if not text:
         return text
-    # 이미 완결 문자로 끝나면 그대로
     if text[-1] in '.!?':
         return text
-    # 마지막 완결 지점 찾기 (우선순위 순)
     for punct in ['습니다.', '입니다.', '됩니다.', '있습니다.', '합니다.', '니다.', '다.', '요.', '.', '!', '?']:
         idx = text.rfind(punct)
         if idx != -1:
@@ -228,28 +255,21 @@ def s(d, k, lim):
     return text
 
 def st_s(d, k, lim):
-    """단순 글자수 슬라이스 (제목 등 문장 완결 불필요한 필드용)"""
+    """단순 글자수 슬라이스 (제목 등)"""
     return (d.get(k) or "")[:lim]
 
 def st_title(root, name, val):
-    """제목 전용 set_text. 공백 패딩 1칸만 추가."""
     set_text(root, name, val + " ")
 
 def _get_bodyPr(sp):
-    """
-    txBody 네임스페이스가 슬라이드마다 다를 수 있음.
-    drawingml(NS) 먼저 시도, 없으면 presentationml(PNS) 시도.
-    """
     txBody = sp.find(f"{{{NS}}}txBody")
     if txBody is None:
         txBody = sp.find(f"{{{PNS}}}txBody")
     if txBody is None:
         return None
-    bodyPr = txBody.find(f"{{{NS}}}bodyPr")
-    return bodyPr
+    return txBody.find(f"{{{NS}}}bodyPr")
 
 def set_no_autofit(root, name):
-    """텍스트 자동 축소 끄기 (제목 등 크기 고정이 필요한 TextBox용)."""
     for sp in root.iter(f"{{{PNS}}}sp"):
         nvSpPr = sp.find(f"{{{PNS}}}nvSpPr")
         if nvSpPr is None:
@@ -268,7 +288,6 @@ def set_no_autofit(root, name):
             etree.SubElement(bodyPr, f"{{{NS}}}noAutofit")
 
 def set_norm_autofit(root, name):
-    """텍스트가 넘칠 때 폰트를 자동으로 줄여서 맞춤 (본문 TextBox용)."""
     for sp in root.iter(f"{{{PNS}}}sp"):
         nvSpPr = sp.find(f"{{{PNS}}}nvSpPr")
         if nvSpPr is None:
@@ -469,7 +488,7 @@ def register_slide(fname, prs_root, rels_root):
 
 
 # ──────────────────────────────────────────────
-# 메인 엔드포인트
+# PPT 생성 엔드포인트
 # ──────────────────────────────────────────────
 @app.post("/generate-ppt")
 def generate_ppt(req: PPTRequest, background_tasks: BackgroundTasks):
@@ -481,7 +500,6 @@ def generate_ppt(req: PPTRequest, background_tasks: BackgroundTasks):
     best  = min(COMBOS, key=lambda x: abs(x - slide_count))
     combo = COMBOS[best]
 
-    # GPT 호출 → 한자 후처리
     data = call_gpt(keyword)
     data = sanitize_data(data)
     print(json.dumps(data, ensure_ascii=False, indent=2))
@@ -551,9 +569,7 @@ def generate_ppt(req: PPTRequest, background_tasks: BackgroundTasks):
                 fp = os.path.join(rd, file)
                 zout.write(fp, os.path.relpath(fp, unpacked))
 
-    # ▼ 응답 전송 후 tmp_dir 자동 정리
     background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
-
     return FileResponse(
         out_path,
         media_type="application/vnd.openxmlformats-officedocument.presentationml.presentation",
@@ -644,19 +660,11 @@ def create_word(keyword, team, today, data):
     TEMPLATE_PATH_WORD = os.path.join(os.path.dirname(__file__), "template_word.docx")
     doc = Document(TEMPLATE_PATH_WORD)
 
-    W = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
+    W   = "http://schemas.openxmlformats.org/wordprocessingml/2006/main"
     WPS = "http://schemas.microsoft.com/office/word/2010/wordprocessingShape"
 
-    def replace_run_text(run_elem, new_text):
-        for t in run_elem.iter(f"{{{W}}}t"):
-            t.text = new_text
-            break
-
     def get_txbx_text(txbx):
-        return ''.join(
-            t.text or ''
-            for t in txbx.iter(f"{{{W}}}t")
-        ).strip()
+        return ''.join(t.text or '' for t in txbx.iter(f"{{{W}}}t")).strip()
 
     # ── TextBox 교체 (제목, 팀명) ──
     for txbx in doc.element.body.iter(f"{{{WPS}}}txbx"):
@@ -665,10 +673,8 @@ def create_word(keyword, team, today, data):
         runs_with_text = [p for p in paras_tb if list(p.iter(f"{{{W}}}r"))]
 
         if 'Letter of Intent' in text or 'Purchase' in text:
-            # 모든 t 비우기
             for t in txbx.iter(f"{{{W}}}t"):
                 t.text = ''
-            # run이 있는 단락 중 첫번째 → title, 두번째 → subtitle
             if len(runs_with_text) >= 2:
                 ts0 = list(runs_with_text[0].iter(f"{{{W}}}t"))
                 if ts0: ts0[0].text = data["title"]
@@ -684,9 +690,6 @@ def create_word(keyword, team, today, data):
                 break
 
     # ── 줄바꿈 포함 run 생성 헬퍼 ──
-    from lxml import etree
-    import copy
-
     def mk_run_br(para, text, bold=False, base_rPr=None):
         lines = text.split('\n')
         for i, line in enumerate(lines):
@@ -706,7 +709,6 @@ def create_word(keyword, team, today, data):
                 etree.SubElement(r, f"{{{W}}}br")
 
     def get_base_rPr(para):
-        """MS Gothic 제외한 첫 번째 rPr 반환"""
         for run in para.runs:
             rPr = run._element.find(f"{{{W}}}rPr")
             if rPr is not None:
@@ -726,25 +728,21 @@ def create_word(keyword, team, today, data):
     # ── 본문 단락 교체 ──
     paras = doc.paragraphs
 
-    # 날짜 (para 6)
     if len(paras) > 6 and paras[6].runs:
         paras[6].runs[0].text = today
 
-    # 배경 (para 7)
     if len(paras) > 7:
         para = paras[7]
         rPr = get_base_rPr(para)
         clear_runs(para)
         mk_run_br(para, data["overview"]["background"], base_rPr=rPr)
 
-    # 목적 (para 10)
     if len(paras) > 10:
         para = paras[10]
         rPr = get_base_rPr(para)
         clear_runs(para)
         mk_run_br(para, data["overview"]["purpose"], base_rPr=rPr)
 
-    # 핵심내용 (para 11)
     if len(paras) > 11:
         main = data["main"]
         para = paras[11]
@@ -757,9 +755,8 @@ def create_word(keyword, team, today, data):
         mk_run_br(para, main['section3_title'] + "\n", bold=True, base_rPr=rPr)
         mk_run_br(para, main['section3_body'], base_rPr=rPr)
 
-    # 분석+결론 (para 12)
     if len(paras) > 12:
-        analysis = data["analysis"]
+        analysis   = data["analysis"]
         conclusion = data["conclusion"]
         para = paras[12]
         rPr = get_base_rPr(para)
@@ -773,7 +770,6 @@ def create_word(keyword, team, today, data):
         mk_run_br(para, conclusion['summary'] + "\n", base_rPr=rPr)
         mk_run_br(para, conclusion['expected'], base_rPr=rPr)
 
-    # 핵심요약+팀정보 (para 13)
     if len(paras) > 13:
         para = paras[13]
         rPr = get_base_rPr(para)
@@ -783,7 +779,7 @@ def create_word(keyword, team, today, data):
         mk_run_br(para, one_line + "\n\n", base_rPr=rPr)
         mk_run_br(para, f"팀  {team}  |  {today}  |  modui.ai", base_rPr=rPr)
 
-        return doc
+    return doc
 
 @app.post("/generate-word")
 def generate_word(req: WordRequest, background_tasks: BackgroundTasks):
@@ -818,8 +814,6 @@ class PDFRequest(BaseModel):
 
 @app.post("/generate-pdf")
 def generate_pdf(req: PDFRequest, background_tasks: BackgroundTasks):
-    import subprocess
-
     keyword = req.keyword
     team    = req.team or "딸깍"
     today   = date.today().strftime("%Y.%m.%d")
@@ -834,7 +828,6 @@ def generate_pdf(req: PDFRequest, background_tasks: BackgroundTasks):
     doc = create_word(keyword, team, today, data)
     doc.save(docx_path)
 
-    # LibreOffice로 PDF 변환
     subprocess.run([
         "libreoffice", "--headless", "--convert-to", "pdf",
         "--outdir", tmp_dir, docx_path
@@ -852,8 +845,6 @@ def generate_pdf(req: PDFRequest, background_tasks: BackgroundTasks):
 # ──────────────────────────────────────────────
 # 회의록 AI
 # ──────────────────────────────────────────────
-from fastapi import UploadFile, File, Form
-
 @app.post("/analyze-minutes")
 async def analyze_minutes(
     file: UploadFile = File(...),
@@ -861,8 +852,6 @@ async def analyze_minutes(
     date: str = Form(""),
     members: str = Form(""),
 ):
-    import whisper
-
     tmp_dir = tempfile.mkdtemp()
     try:
         # 음성 파일 저장
@@ -870,10 +859,14 @@ async def analyze_minutes(
         with open(audio_path, "wb") as f:
             f.write(await file.read())
 
-        # Whisper STT
-        model = whisper.load_model("small")
-        result = model.transcribe(audio_path, language="ko")
-        transcript = result["text"]
+        # Whisper API STT
+        client_stt = openai.OpenAI(api_key=OPENAI_API_KEY)
+        with open(audio_path, "rb") as audio_file:
+            transcript = client_stt.audio.transcriptions.create(
+                model="whisper-1",
+                file=audio_file,
+                language="ko"
+            ).text
 
         # GPT 회의록 요약
         client = openai.OpenAI(api_key=OPENAI_API_KEY)
@@ -893,7 +886,7 @@ async def analyze_minutes(
   ],
   "summary": "회의 전체 내용을 3줄로 요약",
   "action_items": [
-    {"member": "담당자", "content": "해야 할 일", "deadline": "기한"}
+    {"content": "해야 할 일", "deadline": "기한 (없으면 '미정')"}
   ],
   "next_agenda": "다음 회의에서 논의할 안건"
 }"""},

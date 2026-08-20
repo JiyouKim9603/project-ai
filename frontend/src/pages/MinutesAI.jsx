@@ -6,11 +6,12 @@ function MeetingAI() {
   const [file, setFile]         = useState(null);
   const [title, setTitle]       = useState('');
   const [date, setDate]         = useState('');
-  const [members, setMembers]   = useState('');
+
   const [loading, setLoading]   = useState(false);
   const [progress, setProgress] = useState(0);
   const [progressMsg, setProgressMsg] = useState('');
   const [result, setResult]     = useState(null);
+  const [dragOver, setDragOver] = useState(false);
 
   const STEPS = [
     { pct: 10, msg: '음성 파일 업로드 중...' },
@@ -31,6 +32,29 @@ function MeetingAI() {
     return timer;
   };
 
+  // 페이지 전체 드래그 막기
+  const handlePageDragOver = (e) => e.preventDefault();
+  const handlePageDrop = (e) => e.preventDefault();
+
+  // 업로드 영역 드래그앤드롭
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(true);
+  };
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+  };
+  const handleDrop = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOver(false);
+    const dropped = e.dataTransfer.files[0];
+    if (dropped) setFile(dropped);
+  };
+
   const handleAnalyze = async () => {
     if (!file) return alert('음성 파일을 선택해주세요!');
     setLoading(true);
@@ -44,7 +68,7 @@ function MeetingAI() {
       formData.append('file', file);
       formData.append('title', title || '회의');
       formData.append('date', date || new Date().toLocaleDateString('ko-KR'));
-      formData.append('members', members || '');
+      formData.append('members', '');
 
       const res = await fetch('http://output-api.modui.cloud/analyze-minutes', {
         method: 'POST',
@@ -65,7 +89,11 @@ function MeetingAI() {
   };
 
   return (
-    <div className="meeting">
+    <div
+      className="meeting"
+      onDragOver={handlePageDragOver}
+      onDrop={handlePageDrop}
+    >
       <nav className="nav">
         <Link to="/" className="nav-logo">프로젝트<span>.ai</span></Link>
         <div className="nav-links">
@@ -102,15 +130,7 @@ function MeetingAI() {
                 onChange={(e) => setDate(e.target.value)}
               />
             </div>
-            <div className="info-field full-width">
-              <label>참석자</label>
-              <input
-                className="keyword-input"
-                placeholder="예: 지유, 종윤, 태양, 수현"
-                value={members}
-                onChange={(e) => setMembers(e.target.value)}
-              />
-            </div>
+
           </div>
         </div>
 
@@ -119,8 +139,11 @@ function MeetingAI() {
           <h2>음성 파일 업로드</h2>
           <p>mp3, wav, m4a, ogg 형식을 지원합니다</p>
           <div
-            className={`upload-area ${file ? 'has-file' : ''}`}
+            className={`upload-area ${file ? 'has-file' : ''} ${dragOver ? 'drag-over' : ''}`}
             onClick={() => document.getElementById('audio-input').click()}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
           >
             {file ? (
               <div className="file-info">
@@ -173,7 +196,7 @@ function MeetingAI() {
               <h2>📋 {result.title}</h2>
               <div className="result-meta">
                 <span>📅 {result.date}</span>
-                <span>👥 {result.members}</span>
+
               </div>
             </div>
 
@@ -206,7 +229,6 @@ function MeetingAI() {
               <h3>✅ 액션아이템</h3>
               {result.action_items?.map((item, i) => (
                 <div className="action-item" key={i}>
-                  <span className="action-member">{item.member}</span>
                   <span className="action-content">{item.content}</span>
                   <span className="action-deadline">{item.deadline}</span>
                 </div>
