@@ -6,29 +6,32 @@ function OutputAI() {
   const [keyword, setKeyword]   = useState('');
   const [team, setTeam]         = useState('딸깍');
   const [formats, setFormats]   = useState({ ppt: true, word: false, pdf: false });
+  const [selectedModel, setSelectedModel] = useState('gpt');
   const [loading, setLoading]   = useState(false);
   const [slideCount]            = useState(10);
   const [progress, setProgress] = useState(0);
-  const [progressMsg, setProgressMsg] = useState('');
+  const [currentStep, setCurrentStep] = useState(-1);
 
   const toggleFormat = (key) => setFormats(prev => ({ ...prev, [key]: !prev[key] }));
 
   const STEPS = [
-    { pct: 10, msg: '키워드 분석 중...' },
-    { pct: 30, msg: 'AI가 콘텐츠 생성 중...' },
-    { pct: 60, msg: '슬라이드 구성 중...' },
-    { pct: 80, msg: '파일 조립 중...' },
-    { pct: 95, msg: '거의 다 됐어요...' },
+    { pct: 10,  label: '키워드 분석 중...' },
+    { pct: 30,  label: 'AI가 콘텐츠 생성 중...' },
+    { pct: 60,  label: '슬라이드 구성 중...' },
+    { pct: 80,  label: '파일 조립 중...' },
+    { pct: 95,  label: '거의 다 됐어요...' },
   ];
 
   const startProgress = () => {
     let step = 0;
+    setCurrentStep(0);
     const timer = setInterval(() => {
-      if (step >= STEPS.length) { clearInterval(timer); return; }
-      setProgress(STEPS[step].pct);
-      setProgressMsg(STEPS[step].msg);
+      if (step >= STEPS.length - 1) { clearInterval(timer); return; }
       step++;
+      setProgress(STEPS[step].pct);
+      setCurrentStep(step);
     }, 1800);
+    setProgress(STEPS[0].pct);
     return timer;
   };
 
@@ -36,13 +39,12 @@ function OutputAI() {
     const res = await fetch('http://output-api.modui.cloud/generate-ppt', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword: kw, team: team, slide_count: slideCount }),
+      body: JSON.stringify({ keyword: kw, team, slide_count: slideCount, model: selectedModel }),
     });
     if (!res.ok) throw new Error(await res.text());
     const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
     a.download = `${kw}_발표자료.pptx`;
     a.click();
   };
@@ -51,13 +53,12 @@ function OutputAI() {
     const res = await fetch('http://output-api.modui.cloud/generate-word', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword: kw, team: team }),
+      body: JSON.stringify({ keyword: kw, team, model: selectedModel }),
     });
     if (!res.ok) throw new Error(await res.text());
     const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
     a.download = `${kw}_문서.docx`;
     a.click();
   };
@@ -66,13 +67,12 @@ function OutputAI() {
     const res = await fetch('http://output-api.modui.cloud/generate-pdf', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ keyword: kw, team: team }),
+      body: JSON.stringify({ keyword: kw, team, model: selectedModel }),
     });
     if (!res.ok) throw new Error(await res.text());
     const blob = await res.blob();
-    const url  = URL.createObjectURL(blob);
-    const a    = document.createElement('a');
-    a.href     = url;
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
     a.download = `${kw}_문서.pdf`;
     a.click();
   };
@@ -81,105 +81,187 @@ function OutputAI() {
     if (!keyword.trim()) return alert('키워드를 입력해주세요!');
     setLoading(true);
     setProgress(0);
-    setProgressMsg('');
+    setCurrentStep(-1);
     const timer = startProgress();
     try {
       if (formats.ppt)  await downloadPPT(keyword);
       if (formats.word) await downloadWord(keyword);
       if (formats.pdf)  await downloadPDF(keyword);
       setProgress(100);
-      setProgressMsg('완료!');
+      setCurrentStep(STEPS.length);
     } catch (err) {
       alert('오류가 발생했습니다: ' + err.message);
     } finally {
       clearInterval(timer);
       setLoading(false);
-      setTimeout(() => { setProgress(0); setProgressMsg(''); }, 2000);
+      setTimeout(() => { setProgress(0); setCurrentStep(-1); }, 2000);
     }
   };
 
+  const FORMAT_INFO = {
+    ppt:  { icon: '📊', label: 'PPT',  desc: '프레젠테이션 슬라이드' },
+    word: { icon: '📝', label: 'Word', desc: '보고서 문서' },
+    pdf:  { icon: '📋', label: 'PDF',  desc: '인쇄용 문서' },
+  };
+
   return (
-    <div className="output">
-      <nav className="nav">
-        <Link to="/" className="nav-logo">프로젝트<span>.ai</span></Link>
-        <div className="nav-links">
-          <Link to="/minutes">회의록 AI</Link>
-          <Link to="/output">산출물 AI</Link>
+    <div className="out-app">
+
+      {/* ── Nav ── */}
+      <nav className="out-nav">
+        <div className="out-nav-in">
+          <div className="out-logo" onClick={() => window.location.href='/'} style={{cursor:'pointer'}}>
+            <div className="out-logo-icon">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+                <path d="M12 2L3 7v10l9 5 9-5V7L12 2z" fill="url(#og)" stroke="rgba(255,255,255,.1)" strokeWidth=".5"/>
+                <path d="M12 2l9 5-9 5-9-5 9-5z" fill="#5bbfff" opacity=".95"/>
+                <path d="M3 7l9 5v10L3 17V7z" fill="#1a6fd4"/>
+                <path d="M21 7l-9 5v10l9-5V7z" fill="#2d8be8"/>
+                <defs>
+                  <linearGradient id="og" x1="3" y1="2" x2="21" y2="22" gradientUnits="userSpaceOnUse">
+                    <stop offset="0" stopColor="#5bbfff"/>
+                    <stop offset="1" stopColor="#1a5fc8"/>
+                  </linearGradient>
+                </defs>
+              </svg>
+            </div>
+            <div className="out-logo-text">
+              <span className="out-logo-name">Modui</span>
+              <span className="out-logo-sub">AI Groupware</span>
+            </div>
+          </div>
+          <div className="out-nav-links">
+            <Link to="/minutes">회의록 AI</Link>
+            <Link to="/output">문서봇 AI</Link>
+          </div>
         </div>
       </nav>
 
-      <main className="output-main">
-        <div className="output-header">
-          <h1>📄 산출물 AI</h1>
-          <p>키워드를 입력하면 AI가 PPT, Word, PDF를 자동으로 생성합니다</p>
+      {/* ── 페이지 헤더 ── */}
+      <div className="out-page-header">
+        <div className="out-page-tag">
+          <span className="out-live-dot"></span>
+          문서봇 AI
         </div>
+        <h1 className="out-page-title">키워드 하나로<br/><span>PPT·Word·PDF 완성</span></h1>
+        <p className="out-page-sub">주제를 입력하면 AI가 내용을 구성하고<br/>바로 다운로드할 수 있는 문서를 만들어줍니다.</p>
+      </div>
 
-        {/* 키워드 입력 */}
-        <div className="input-card">
-          <h2>키워드 입력</h2>
-          <p>생성할 문서의 주제나 키워드를 입력하세요</p>
+      {/* ── 메인 ── */}
+      <div className="out-main">
+
+        {/* 주제 입력 */}
+        <div className="out-card">
+          <div className="out-card-label">주제 입력</div>
           <input
-            className="keyword-input"
+            className="out-input out-input-lg"
             placeholder="예: 하이브리드 클라우드 인프라 설계"
             value={keyword}
             onChange={(e) => setKeyword(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
           />
+          <div className="out-input-hint">Enter로 바로 생성할 수 있어요</div>
         </div>
 
-        {/* 팀명 입력 */}
-        <div className="input-card">
-          <h2>팀명 입력</h2>
-          <p>문서 하단에 표시될 팀 이름을 입력하세요</p>
-          <input
-            className="keyword-input"
-            placeholder="예: 딸깍"
-            value={team}
-            onChange={(e) => setTeam(e.target.value)}
-          />
-        </div>
+        {/* 형식 + 팀명 + 모델 가로 배치 */}
+        <div className="out-row">
 
-        {/* 출력 형식 선택 */}
-        <div className="format-card">
-          <h2>출력 형식 선택</h2>
-          <p>생성할 파일 형식을 선택하세요 (복수 선택 가능)</p>
-          <div className="format-options">
-            {[['ppt', '📊 PPT'], ['word', '📝 Word'], ['pdf', '📄 PDF']].map(([key, label]) => (
-              <label className="format-option" key={key}>
-                <input type="checkbox" checked={formats[key]} onChange={() => toggleFormat(key)} />
-                <span className={`format-badge ${key}`}>{label}</span>
-              </label>
-            ))}
+          {/* 출력 형식 */}
+          <div className="out-card out-card-flex">
+            <div className="out-card-label">출력 형식</div>
+            <div className="out-format-options">
+              {Object.entries(FORMAT_INFO).map(([key, { icon, label, desc }]) => (
+                <label key={key} className={`out-format-opt ${formats[key] ? 'active' : ''}`}>
+                  <input type="checkbox" checked={formats[key]} onChange={() => toggleFormat(key)} style={{display:'none'}}/>
+                  <div className="out-format-icon">{icon}</div>
+                  <div className="out-format-name">{label}</div>
+                  <div className="out-format-desc">{desc}</div>
+                  {formats[key] && <div className="out-format-check">✓</div>}
+                </label>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* AI 엔진 */}
-        <div className="ai-select-card">
-          <h2>AI 엔진</h2>
-          <p>현재 GPT-4o를 사용하여 문서를 생성합니다</p>
-          <div className="ai-options">
-            <span className="ai-badge gpt">GPT-4o</span>
+          {/* 오른쪽 설정들 */}
+          <div className="out-col">
+
+            {/* 팀명 */}
+            <div className="out-card">
+              <div className="out-card-label">팀명</div>
+              <input
+                className="out-input"
+                placeholder="예: 딸깍"
+                value={team}
+                onChange={(e) => setTeam(e.target.value)}
+              />
+            </div>
+
+            {/* AI 모델 */}
+            <div className="out-card">
+              <div className="out-card-label">AI 모델</div>
+              <div className="out-model-options">
+                {[['gpt','GPT-4o-mini','#e9f5f0','#1f7a5c'], ['gemini','Gemini 1.5','#e3f2fd','#1565c0']].map(([key, label, bg, color]) => (
+                  <label
+                    key={key}
+                    className={`out-model-opt ${selectedModel === key ? 'active' : ''}`}
+                    style={selectedModel === key ? {background: bg, borderColor: color, color} : {}}
+                  >
+                    <input type="radio" name="ai-model" checked={selectedModel === key} onChange={() => setSelectedModel(key)} style={{display:'none'}}/>
+                    <span className="out-model-dot" style={{background: selectedModel === key ? color : '#dde4f0'}}></span>
+                    {label}
+                  </label>
+                ))}
+              </div>
+            </div>
+
           </div>
         </div>
 
         {/* 생성 버튼 */}
-        <button className="generate-btn" onClick={handleGenerate} disabled={loading}>
-          {loading ? '⏳ 생성 중...' : '✨ 문서 자동 생성'}
+        <button className="out-generate-btn" onClick={handleGenerate} disabled={loading}>
+          {loading ? (
+            <span className="out-btn-loading">
+              <span className="out-spinner"></span>
+              생성 중...
+            </span>
+          ) : (
+            <>✨ 문서 자동 생성</>
+          )}
         </button>
 
         {/* 진행상황 */}
         {loading && (
-          <div className="progress-wrap">
-            <div className="progress-msg">{progressMsg}</div>
-            <div className="progress-bar-bg">
-              <div
-                className="progress-bar-fill"
-                style={{ width: `${progress}%`, transition: 'width 0.8s ease' }}
-              />
+          <div className="out-progress-card">
+            <div className="out-progress-info">
+              <div>
+                <div className="out-progress-label">생성 중</div>
+                <div className="out-progress-sub">
+                  {formats.ppt && 'PPT '}
+                  {formats.word && 'Word '}
+                  {formats.pdf && 'PDF'}
+                  를 만들고 있어요
+                </div>
+              </div>
             </div>
-            <div className="progress-pct">{progress}%</div>
+            <div className="out-progress-track">
+            </div>
+            <div className="out-steps">
+              {STEPS.map((step, i) => {
+                const isDone   = i < currentStep;
+                const isActive = i === currentStep;
+                return (
+                  <div key={i} className={`out-step ${isDone ? 'done' : ''} ${isActive ? 'active' : ''}`}>
+                    <span className="out-step-icon">
+                      {isDone ? '✅' : isActive ? '⏳' : '○'}
+                    </span>
+                    {step.label}
+                  </div>
+                );
+              })}
+            </div>
           </div>
         )}
-      </main>
+      </div>
     </div>
   );
 }
