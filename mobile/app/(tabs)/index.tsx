@@ -3,6 +3,8 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import Svg, { Path, Defs, LinearGradient, Stop } from 'react-native-svg';
 import { COLORS, RADIUS } from '../../constants/modui-theme';
+import * as WebBrowser from 'expo-web-browser';
+import { API_SIGN, API_VIDEO, API_CALENDAR, API_MAIL, API_CHAT } from '../../constants/api';
 
 function ModuiLogo({ size = 34 }: { size?: number }) {
   return (
@@ -24,14 +26,13 @@ function ModuiLogo({ size = 34 }: { size?: number }) {
 }
 
 const MODULES = [
-  { key: 'minutes',  emoji: '🎙️', name: '회의록 AI', desc: '음성을 회의록으로',    route: '/minutes',  ready: true  },
-  { key: 'output',   emoji: '📄', name: '문서봇 AI', desc: 'PPT·Word·PDF 생성',   route: '/output',   ready: true  },
-  { key: 'mail',     emoji: '✉️', name: '메일 AI',   desc: '메일 작성·답장·요약',  route: null,        ready: false },
-  { key: 'calendar', emoji: '📅', name: '캘린더',    desc: '팀 일정 공유',         route: null,        ready: false },
-  { key: 'chat',     emoji: '💬', name: '메신저',    desc: '채널 기반 협업',       route: null,        ready: false },
-  { key: 'video',    emoji: '📹', name: '화상회의',  desc: '링크 하나로 회의',     route: null,        ready: false },
-  { key: 'approval', emoji: '✅', name: '전자결재',  desc: '결재선 자동 승인',     route: null,        ready: false },
-  { key: 'remote',   emoji: '🖥️', name: '원격지원',  desc: '화면 공유 문제 해결',  route: null,        ready: false },
+  { key: 'minutes',  emoji: '🎙️', name: '회의록 AI', desc: '음성을 회의록으로',   route: '/minutes', url: null,          ready: true  },
+  { key: 'output',   emoji: '📄', name: '문서봇 AI', desc: 'PPT·Word·PDF 생성',  route: '/output',  url: null,          ready: true  },
+  { key: 'mail',     emoji: '✉️', name: '메일 AI',   desc: '메일 작성·답장·요약', route: null,       url: API_MAIL,      ready: true  },
+  { key: 'calendar', emoji: '📅', name: '캘린더',    desc: '팀 일정 공유',        route: null,       url: API_CALENDAR,  ready: true  },
+  { key: 'chat',     emoji: '💬', name: '메신저',    desc: '채널 기반 협업',      route: null,       url: API_CHAT,      ready: true  },
+  { key: 'video',    emoji: '📹', name: '화상회의',  desc: '링크 하나로 회의',    route: null,       url: API_VIDEO,     ready: true  },
+  { key: 'approval', emoji: '✅', name: '전자결재',  desc: '결재선 자동 승인',    route: null,       url: API_SIGN,      ready: true  },
 ];
 
 export default function HomeScreen() {
@@ -92,7 +93,10 @@ export default function HomeScreen() {
               <TouchableOpacity
                 key={m.key}
                 style={[styles.moduleCard, !m.ready && styles.moduleCardOff]}
-                onPress={() => m.route && router.push(m.route as any)}
+                onPress={() => {
+                  if (m.route) router.push(m.route as any);
+                  else if (m.url) WebBrowser.openBrowserAsync(m.url);
+                }}
                 disabled={!m.ready}
                 activeOpacity={0.8}
               >

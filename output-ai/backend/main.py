@@ -1,8 +1,8 @@
-from fastapi import FastAPI, BackgroundTasks, UploadFile, File, Form
+from fastapi import FastAPI, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse
 from pydantic import BaseModel
-import openai, json, zipfile, shutil, os, re, tempfile, math, subprocess, time
+import openai, json, zipfile, shutil, os, re, tempfile, time
 from datetime import date
 from lxml import etree
 from typing import Optional
@@ -52,36 +52,7 @@ def sanitize_data(data):
 
 
 # ──────────────────────────────────────────────
-# Whisper 청크 분할 STT
-# ──────────────────────────────────────────────
-def transcribe_in_chunks(file_path, model, chunk_minutes=5):
-    result = subprocess.run(
-        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-         "-of", "default=noprint_wrappers=1:nokey=1", file_path],
-        capture_output=True, text=True
-    )
-    duration = float(result.stdout.strip())
-    chunk_sec = chunk_minutes * 60
-    chunks = math.ceil(duration / chunk_sec)
-
-    full_text = ""
-    for i in range(chunks):
-        start = i * chunk_sec
-        chunk_path = f"{file_path}_chunk{i}.m4a"
-        subprocess.run([
-            "ffmpeg", "-i", file_path,
-            "-ss", str(start), "-t", str(chunk_sec),
-            "-c", "copy", chunk_path, "-y"
-        ], capture_output=True)
-        chunk_result = model.transcribe(chunk_path, language="ko")
-        full_text += chunk_result["text"] + " "
-        os.remove(chunk_path)
-
-    return full_text.strip()
-
-
-# ──────────────────────────────────────────────
-# GPT 호출 - PPT
+# Request 모델
 # ──────────────────────────────────────────────
 class PPTRequest(BaseModel):
     keyword: str
@@ -89,6 +60,24 @@ class PPTRequest(BaseModel):
     slide_count: Optional[int] = 5
     model: Optional[str] = "gpt"
 
+class WordRequest(BaseModel):
+    keyword: str
+    team: Optional[str] = "딸깍"
+    model: Optional[str] = "gpt"
+
+class PDFRequest(BaseModel):
+    keyword: str
+    team: Optional[str] = "딸깍"
+    model: Optional[str] = "gpt"
+
+class PromptRequest(BaseModel):
+    keyword: str
+    model: Optional[str] = "gpt"
+
+
+# ──────────────────────────────────────────────
+# GPT 호출 - PPT
+# ──────────────────────────────────────────────
 def call_gpt(keyword):
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
     res = client.chat.completions.create(
@@ -219,22 +208,6 @@ def call_gemini_word(keyword):
 {"title":"20자이내","subtitle":"30자이내","overview":{"heading":"1. 개요","background":"150자이내","purpose":"100자이내"},"main":{"heading":"2. 핵심 내용","section1_title":"15자이내","section1_body":"150자이내","section2_title":"15자이내","section2_body":"150자이내","section3_title":"15자이내","section3_body":"150자이내"},"analysis":{"heading":"3. 분석","cause1":"100자이내","cause2":"100자이내","cause3":"100자이내","result":"150자이내"},"conclusion":{"heading":"4. 결론","summary":"150자이내","expected":"100자이내","one_line_summary":"50자이내"}}
 키워드: """ + keyword
     return _gemini_call(prompt)
-
-def call_gemini_minutes(transcript, title, members):
-    prompt = f"""JSON만 반환. 한국어. 한자 절대 금지.
-{{"agenda":[{{"title":"안건 제목","content":"안건 내용 요약"}}],"summary":"회의 전체 내용을 3줄로 요약","action_items":[{{"content":"해야 할 일","deadline":"기한 (없으면 미정')"}}],"next_agenda":"다음 회의에서 논의할 안건"}}
-
-회의 제목: {title}
-참석자: {members}
-
-회의 내용:
-{transcript}"""
-    return _gemini_call(prompt)
-
-def call_ai_ppt(keyword, model="gpt"):
-    if model == "gemini":
-        return call_gemini_ppt(keyword)
-    return call_gpt(keyword)
 
 
 # ──────────────────────────────────────────────
@@ -541,8 +514,17 @@ def register_slide(fname, prs_root, rels_root):
 
 
 # ──────────────────────────────────────────────
-# PPT 생성 엔드포인트
+# 엔드포인트
 # ──────────────────────────────────────────────
+@app.get("/")
+def root():
+    return {"status": "ok", "service": "output-ai API"}
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
+
+
 @app.post("/generate-ppt")
 def generate_ppt(req: PPTRequest, background_tasks: BackgroundTasks):
     keyword     = req.keyword
@@ -555,7 +537,6 @@ def generate_ppt(req: PPTRequest, background_tasks: BackgroundTasks):
 
     data = call_gemini_ppt(keyword) if req.model == "gemini" else call_gpt(keyword)
     data = sanitize_data(data)
-    print(json.dumps(data, ensure_ascii=False, indent=2))
 
     tmp_dir  = tempfile.mkdtemp()
     unpacked = os.path.join(tmp_dir, "unpacked")
@@ -631,30 +612,79 @@ def generate_ppt(req: PPTRequest, background_tasks: BackgroundTasks):
     )
 
 
+@app.post("/generate-word")
+def generate_word(req: WordRequest, background_tasks: BackgroundTasks):
+    keyword = req.keyword
+    team    = req.team or "딸깍"
+    today   = date.today().strftime("%Y.%m.%d")
+
+    data = call_gemini_word(keyword) if req.model == "gemini" else call_gpt_word(keyword)
+    data = sanitize_data(data)
+
+    tmp_dir  = tempfile.mkdtemp()
+    out_path = os.path.join(tmp_dir, f"{keyword}_문서.docx")
+
+    doc = create_word(keyword, team, today, data)
+    doc.save(out_path)
+
+    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
+    return FileResponse(
+        out_path,
+        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+        filename=f"{keyword}_문서.docx",
+        background=background_tasks,
+    )
+
+
+@app.post("/generate-pdf")
+def generate_pdf(req: PDFRequest, background_tasks: BackgroundTasks):
+    keyword = req.keyword
+    team    = req.team or "딸깍"
+    today   = date.today().strftime("%Y.%m.%d")
+
+    data = call_gemini_word(keyword) if req.model == "gemini" else call_gpt_word(keyword)
+    data = sanitize_data(data)
+
+    tmp_dir   = tempfile.mkdtemp()
+    docx_path = os.path.join(tmp_dir, f"{keyword}_문서.docx")
+    pdf_path  = os.path.join(tmp_dir, f"{keyword}_문서.pdf")
+
+    doc = create_word(keyword, team, today, data)
+    doc.save(docx_path)
+
+    import subprocess
+    subprocess.run([
+        "libreoffice", "--headless", "--convert-to", "pdf",
+        "--outdir", tmp_dir, docx_path
+    ], check=True)
+
+    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
+    return FileResponse(
+        pdf_path,
+        media_type="application/pdf",
+        filename=f"{keyword}_문서.pdf",
+        background=background_tasks,
+    )
+
+
+@app.post("/suggest-prompt")
+def suggest_prompt(req: PromptRequest):
+    client = openai.OpenAI(api_key=OPENAI_API_KEY)
+    res = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "system", "content": """입력 중인 문장을 PPT 주제 문장 5가지로 완성해줘. JSON만 반환. 한국어.
+{"suggestions": ["완성된 문장1", "완성된 문장2", "완성된 문장3", "완성된 문장4", "완성된 문장5"]}"""},
+            {"role": "user", "content": f"입력: {req.keyword}"}
+        ]
+    )
+    clean = re.sub(r"```json|```", "", res.choices[0].message.content).strip()
+    return json.loads(clean)
+
+
 # ──────────────────────────────────────────────
-# 기타 엔드포인트
+# Word 생성 함수 (generate-word, generate-pdf 공통)
 # ──────────────────────────────────────────────
-@app.get("/")
-def root():
-    return {"status": "ok", "service": "모듀이 PPT 생성 API"}
-
-@app.get("/api/meeting")
-def meeting():
-    return {"message": "회의록 AI 엔드포인트"}
-
-@app.get("/api/output")
-def output_api():
-    return {"message": "산출물 AI 엔드포인트"}
-
-
-# ──────────────────────────────────────────────
-# Word 생성
-# ──────────────────────────────────────────────
-class WordRequest(BaseModel):
-    keyword: str
-    team: Optional[str] = "딸깍"
-    model: Optional[str] = "gpt"
-
 def call_gpt_word(keyword):
     client = openai.OpenAI(api_key=OPENAI_API_KEY)
     res = client.chat.completions.create(
@@ -781,19 +811,16 @@ def create_word(keyword, team, today, data):
 
     if len(paras) > 6 and paras[6].runs:
         paras[6].runs[0].text = today
-
     if len(paras) > 7:
         para = paras[7]
         rPr = get_base_rPr(para)
         clear_runs(para)
         mk_run_br(para, data["overview"]["background"], base_rPr=rPr)
-
     if len(paras) > 10:
         para = paras[10]
         rPr = get_base_rPr(para)
         clear_runs(para)
         mk_run_br(para, data["overview"]["purpose"], base_rPr=rPr)
-
     if len(paras) > 11:
         main = data["main"]
         para = paras[11]
@@ -805,7 +832,6 @@ def create_word(keyword, team, today, data):
         mk_run_br(para, main['section2_body'] + "\n\n", base_rPr=rPr)
         mk_run_br(para, main['section3_title'] + "\n", bold=True, base_rPr=rPr)
         mk_run_br(para, main['section3_body'], base_rPr=rPr)
-
     if len(paras) > 12:
         analysis   = data["analysis"]
         conclusion = data["conclusion"]
@@ -820,7 +846,6 @@ def create_word(keyword, team, today, data):
         mk_run_br(para, "결론\n", bold=True, base_rPr=rPr)
         mk_run_br(para, conclusion['summary'] + "\n", base_rPr=rPr)
         mk_run_br(para, conclusion['expected'], base_rPr=rPr)
-
     if len(paras) > 13:
         para = paras[13]
         rPr = get_base_rPr(para)
@@ -831,334 +856,3 @@ def create_word(keyword, team, today, data):
         mk_run_br(para, f"팀  {team}  |  {today}  |  modui.ai", base_rPr=rPr)
 
     return doc
-
-@app.post("/generate-word")
-def generate_word(req: WordRequest, background_tasks: BackgroundTasks):
-    keyword = req.keyword
-    team    = req.team or "딸깍"
-    today   = date.today().strftime("%Y.%m.%d")
-
-    data = call_gemini_word(keyword) if req.model == "gemini" else call_gpt_word(keyword)
-    data = sanitize_data(data)
-
-    tmp_dir  = tempfile.mkdtemp()
-    out_path = os.path.join(tmp_dir, f"{keyword}_문서.docx")
-
-    doc = create_word(keyword, team, today, data)
-    doc.save(out_path)
-
-    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
-    return FileResponse(
-        out_path,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=f"{keyword}_문서.docx",
-        background=background_tasks,
-    )
-
-
-# ──────────────────────────────────────────────
-# PDF 생성 (Word → LibreOffice 변환)
-# ──────────────────────────────────────────────
-class PDFRequest(BaseModel):
-    keyword: str
-    team: Optional[str] = "딸깍"
-    model: Optional[str] = "gpt"
-
-@app.post("/generate-pdf")
-def generate_pdf(req: PDFRequest, background_tasks: BackgroundTasks):
-    keyword = req.keyword
-    team    = req.team or "딸깍"
-    today   = date.today().strftime("%Y.%m.%d")
-
-    data = call_gemini_word(keyword) if req.model == "gemini" else call_gpt_word(keyword)
-    data = sanitize_data(data)
-
-    tmp_dir   = tempfile.mkdtemp()
-    docx_path = os.path.join(tmp_dir, f"{keyword}_문서.docx")
-    pdf_path  = os.path.join(tmp_dir, f"{keyword}_문서.pdf")
-
-    doc = create_word(keyword, team, today, data)
-    doc.save(docx_path)
-
-    subprocess.run([
-        "libreoffice", "--headless", "--convert-to", "pdf",
-        "--outdir", tmp_dir, docx_path
-    ], check=True)
-
-    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
-    return FileResponse(
-        pdf_path,
-        media_type="application/pdf",
-        filename=f"{keyword}_문서.pdf",
-        background=background_tasks,
-    )
-
-
-# ──────────────────────────────────────────────
-# 회의록 AI
-# ──────────────────────────────────────────────
-@app.post("/analyze-minutes")
-async def analyze_minutes(
-    file: UploadFile = File(...),
-    title: str = Form("회의"),
-    date: str = Form(""),
-    members: str = Form(""),
-    model: str = Form("gpt"),
-):
-    tmp_dir = tempfile.mkdtemp()
-    try:
-        audio_path = os.path.join(tmp_dir, file.filename)
-        with open(audio_path, "wb") as f:
-            f.write(await file.read())
-
-        client_stt = openai.OpenAI(api_key=OPENAI_API_KEY)
-        with open(audio_path, "rb") as audio_file:
-            transcript = client_stt.audio.transcriptions.create(
-                model="whisper-1",
-                file=audio_file,
-                language="ko"
-            ).text
-
-        if model == "gemini":
-            summary = call_gemini_minutes(transcript, title, members)
-            summary = sanitize_data(summary)
-            return {"title": title, "date": date, "members": members, "transcript": transcript, **summary}
-
-        client = openai.OpenAI(api_key=OPENAI_API_KEY)
-        res = client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[
-                {"role": "system", "content": """당신은 회의록 작성 전문가입니다. 회의 내용을 분석하여 아래 JSON 형식으로 반환하세요.
-
-규칙:
-1. JSON만 반환, 다른 텍스트 절대 금지
-2. 모든 내용은 한국어로 작성
-3. 한자 사용 절대 금지
-
-{
-  "agenda": [
-    {"title": "안건 제목", "content": "안건 내용 요약"}
-  ],
-  "summary": "회의 전체 내용을 3줄로 요약",
-  "action_items": [
-    {"content": "해야 할 일", "deadline": "기한 (없으면 '미정')"}
-  ],
-  "next_agenda": "다음 회의에서 논의할 안건"
-}"""},
-                {"role": "user", "content": f"회의 제목: {title}\n참석자: {members}\n\n회의 내용:\n{transcript}"}
-            ]
-        )
-        clean = re.sub(r"```json|```", "", res.choices[0].message.content).strip()
-        summary = json.loads(clean)
-        summary = sanitize_data(summary)
-
-        return {
-            "title": title,
-            "date": date,
-            "members": members,
-            "transcript": transcript,
-            **summary
-        }
-
-    finally:
-        shutil.rmtree(tmp_dir, ignore_errors=True)
-# ──────────────────────────────────────────────
-# 회의록 → Word 공문 생성
-# ──────────────────────────────────────────────
-class MinutesDocRequest(BaseModel):
-    title: str
-    date: Optional[str] = ""
-    members: Optional[str] = ""
-    transcript: Optional[str] = ""
-    agenda: Optional[list] = []
-    summary: Optional[str] = ""
-    action_items: Optional[list] = []
-    next_agenda: Optional[str] = ""
-
-@app.post("/generate-minutes-word")
-def generate_minutes_word(req: MinutesDocRequest, background_tasks: BackgroundTasks):
-    from docx import Document
-    from docx.shared import Pt, RGBColor, Cm
-    from docx.enum.text import WD_ALIGN_PARAGRAPH
-    from docx.oxml.ns import qn
-    from docx.oxml import OxmlElement
-    import copy
-
-    today = req.date or date.today().strftime("%Y.%m.%d")
-    doc_num = f"MOD-{today.replace('.','').replace('-','')[:8]}-001"
-
-    doc = Document()
-
-    # 여백 설정
-    for section in doc.sections:
-        section.top_margin    = Cm(2.5)
-        section.bottom_margin = Cm(2.5)
-        section.left_margin   = Cm(3.0)
-        section.right_margin  = Cm(3.0)
-
-    COLOR_PRIMARY = RGBColor(0x1B, 0x3A, 0x6B)
-    COLOR_ACCENT  = RGBColor(0x2E, 0x5F, 0xA3)
-    COLOR_GRAY    = RGBColor(0x66, 0x66, 0x66)
-    FONT_NAME     = "맑은 고딕"
-
-    def add_run(para, text, bold=False, size=10, color=None):
-        run = para.add_run(text)
-        run.font.name = FONT_NAME
-        run.font.size = Pt(size)
-        run.font.bold = bold
-        if color:
-            run.font.color.rgb = color
-        return run
-
-    def set_cell_bg(cell, hex_color):
-        tc = cell._tc
-        tcPr = tc.get_or_add_tcPr()
-        shd = OxmlElement('w:shd')
-        shd.set(qn('w:val'), 'clear')
-        shd.set(qn('w:color'), 'auto')
-        shd.set(qn('w:fill'), hex_color)
-        tcPr.append(shd)
-
-    def add_section_title(label):
-        p = doc.add_paragraph()
-        p.paragraph_format.space_before = Pt(28)
-        p.paragraph_format.space_after  = Pt(8)
-        # 왼쪽 파란 border
-        pPr = p._p.get_or_add_pPr()
-        pBdr = OxmlElement('w:pBdr')
-        left = OxmlElement('w:left')
-        left.set(qn('w:val'), 'single')
-        left.set(qn('w:sz'), '18')
-        left.set(qn('w:space'), '8')
-        left.set(qn('w:color'), '2E5FA3')
-        pBdr.append(left)
-        pPr.append(pBdr)
-        p.paragraph_format.left_indent = Cm(0.4)
-        add_run(p, label, bold=True, size=12, color=COLOR_PRIMARY)
-
-    # ── 제목
-    title_p = doc.add_paragraph()
-    title_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    title_p.paragraph_format.space_after = Pt(4)
-    add_run(title_p, "회  의  록", bold=True, size=20, color=COLOR_PRIMARY)
-
-    sub_p = doc.add_paragraph()
-    sub_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    sub_p.paragraph_format.space_after = Pt(2)
-    add_run(sub_p, req.title, bold=True, size=12, color=COLOR_ACCENT)
-
-    date_p = doc.add_paragraph()
-    date_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-    date_p.paragraph_format.space_after = Pt(14)
-    add_run(date_p, f"{today}  |  modui.ai", size=9, color=COLOR_GRAY)
-
-    doc.add_paragraph()  # 구분 공백
-
-    # ── 1. 회의 개요 테이블
-    add_section_title("1. 회의 개요")
-    info_table = doc.add_table(rows=5, cols=2)
-    info_table.style = 'Table Grid'
-    labels = ["문서번호", "문서명", "회의명", "일  시", "참 석 자"]
-    values = [doc_num, "회의록", req.title, today, req.members]
-    for i, (lbl, val) in enumerate(zip(labels, values)):
-        row = info_table.rows[i]
-        row.cells[0].width = Cm(3.0)
-        row.cells[1].width = Cm(12.0)
-        set_cell_bg(row.cells[0], 'E8EEF7')
-        lp = row.cells[0].paragraphs[0]
-        lp.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        add_run(lp, lbl, bold=True, size=9, color=COLOR_PRIMARY)
-        vp = row.cells[1].paragraphs[0]
-        add_run(vp, val or "-", size=9)
-    doc.add_paragraph()
-    doc.add_paragraph()
-
-    # ── 2. 안건
-    add_section_title("2. 안건 및 논의 내용")
-    ag_table = doc.add_table(rows=1 + len(req.agenda), cols=3)
-    ag_table.style = 'Table Grid'
-    # 헤더
-    hrow = ag_table.rows[0]
-    for cell, label, w in zip(hrow.cells, ["번호","안건","내용"], [Cm(1.5),Cm(4.0),Cm(9.5)]):
-        cell.width = w
-        set_cell_bg(cell, '1B3A6B')
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        add_run(p, label, bold=True, size=9, color=RGBColor(0xFF,0xFF,0xFF))
-    # 데이터
-    for i, item in enumerate(req.agenda or []):
-        row = ag_table.rows[i+1]
-        bg = 'FFFFFF' if i % 2 == 0 else 'E8EEF7'
-        for cell in row.cells:
-            set_cell_bg(cell, bg)
-        row.cells[0].width = Cm(1.5)
-        row.cells[1].width = Cm(4.0)
-        row.cells[2].width = Cm(9.5)
-        p0 = row.cells[0].paragraphs[0]
-        p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        add_run(p0, str(i+1), bold=True, size=9, color=COLOR_ACCENT)
-        add_run(row.cells[1].paragraphs[0], item.get("title",""), bold=True, size=9)
-        add_run(row.cells[2].paragraphs[0], item.get("content",""), size=9)
-    doc.add_paragraph()
-    doc.add_paragraph()
-
-    # ── 3. 회의 요약
-    add_section_title("3. 회의 요약")
-    for line in (req.summary or "").split("\n"):
-        p = doc.add_paragraph()
-        p.paragraph_format.left_indent = Cm(0.4)
-        p.paragraph_format.space_after = Pt(3)
-        add_run(p, "• ", bold=True, color=COLOR_ACCENT)
-        add_run(p, line.strip(), size=9)
-    doc.add_paragraph()
-    doc.add_paragraph()
-
-    # ── 4. Action Items
-    add_section_title("4. 결정사항 및 후속 조치")
-    ai_table = doc.add_table(rows=1 + len(req.action_items), cols=3)
-    ai_table.style = 'Table Grid'
-    hrow2 = ai_table.rows[0]
-    for cell, label, w in zip(hrow2.cells, ["No.","할 일","기한"], [Cm(1.2),Cm(10.3),Cm(3.5)]):
-        cell.width = w
-        set_cell_bg(cell, '2E5FA3')
-        p = cell.paragraphs[0]
-        p.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        add_run(p, label, bold=True, size=9, color=RGBColor(0xFF,0xFF,0xFF))
-    for i, item in enumerate(req.action_items or []):
-        row = ai_table.rows[i+1]
-        bg = 'FFFFFF' if i % 2 == 0 else 'E8EEF7'
-        for cell in row.cells:
-            set_cell_bg(cell, bg)
-        row.cells[0].width = Cm(1.2)
-        row.cells[1].width = Cm(10.3)
-        row.cells[2].width = Cm(3.5)
-        p0 = row.cells[0].paragraphs[0]
-        p0.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        add_run(p0, str(i+1), bold=True, size=9, color=COLOR_ACCENT)
-        add_run(row.cells[1].paragraphs[0], item.get("content",""), size=9)
-        p2 = row.cells[2].paragraphs[0]
-        p2.alignment = WD_ALIGN_PARAGRAPH.CENTER
-        deadline = item.get("deadline","미정")
-        add_run(p2, deadline, bold=(deadline != "미정"), size=9,
-                color=COLOR_GRAY if deadline == "미정" else COLOR_PRIMARY)
-    doc.add_paragraph()
-
-    # ── 5. 차기 안건
-    add_section_title("5. 차기 회의 안건")
-    next_p = doc.add_paragraph()
-    next_p.paragraph_format.left_indent = Cm(0.4)
-    add_run(next_p, req.next_agenda or "-", size=9)
-
-    # ── 저장
-    tmp_dir  = tempfile.mkdtemp()
-    filename = f"{req.title}_회의록.docx"
-    out_path = os.path.join(tmp_dir, filename)
-    doc.save(out_path)
-
-    background_tasks.add_task(shutil.rmtree, tmp_dir, ignore_errors=True)
-    return FileResponse(
-        out_path,
-        media_type="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-        filename=filename,
-        background=background_tasks,
-    )

@@ -378,3 +378,39 @@
   .out-row { grid-template-columns: 1fr; }
   .out-page-title { font-size: 36px; }
 }
+
+/* ── 자동완성 ── */
+.out-autocomplete-wrap { position: relative; }
+.out-input-row { position: relative; display: flex; align-items: center; }
+.out-input-row .out-input { flex: 1; }
+.out-suggest-spinner {
+  position: absolute;
+  right: 14px;
+  font-size: 14px;
+}
+.out-suggestions {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1.5px solid #dde4f0;
+  border-radius: 13px;
+  box-shadow: 0 8px 24px rgba(14,22,38,.1);
+  z-index: 100;
+  overflow: hidden;
+}
+.out-suggestion-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  font-size: 13.5px;
+  color: #0e1626;
+  cursor: pointer;
+  transition: background .15s;
+  border-bottom: 1px solid #f0f3f9;
+}
+.out-suggestion-item:last-child { border-bottom: none; }
+.out-suggestion-item:hover { background: #eef2fb; }
+.out-suggest-icon { font-size: 13px; color: #8090a8; flex-shrink: 0; }

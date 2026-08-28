@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import './OutputAI.css';
 
@@ -11,6 +11,10 @@ function OutputAI() {
   const [slideCount]            = useState(10);
   const [progress, setProgress] = useState(0);
   const [currentStep, setCurrentStep] = useState(-1);
+  const [suggestions, setSuggestions] = useState([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSuggest, setLoadingSuggest] = useState(false);
+  const debounceRef = useRef(null);
 
   const toggleFormat = (key) => setFormats(prev => ({ ...prev, [key]: !prev[key] }));
 
@@ -21,6 +25,43 @@ function OutputAI() {
     { pct: 80,  label: '파일 조립 중...' },
     { pct: 95,  label: '거의 다 됐어요...' },
   ];
+
+  const fetchSuggestions = useCallback(async (text) => {
+    if (!text.trim() || text.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+    setLoadingSuggest(true);
+    try {
+      const res = await fetch('http://output-api.modui.cloud/suggest-prompt', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ keyword: text }),
+      });
+      const data = await res.json();
+      setSuggestions(data.suggestions || []);
+      setShowSuggestions(true);
+    } catch (err) {
+      setSuggestions([]);
+    } finally {
+      setLoadingSuggest(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchSuggestions(keyword);
+    }, 200);
+    return () => clearTimeout(debounceRef.current);
+  }, [keyword, fetchSuggestions]);
+
+  const handleSelectSuggestion = (s) => {
+    setKeyword(s);
+    setSuggestions([]);
+    setShowSuggestions(false);
+  };
 
   const startProgress = () => {
     let step = 0;
@@ -79,6 +120,7 @@ function OutputAI() {
 
   const handleGenerate = async () => {
     if (!keyword.trim()) return alert('키워드를 입력해주세요!');
+    setShowSuggestions(false);
     setLoading(true);
     setProgress(0);
     setCurrentStep(-1);
@@ -105,7 +147,7 @@ function OutputAI() {
   };
 
   return (
-    <div className="out-app">
+    <div className="out-app" onClick={() => setShowSuggestions(false)}>
 
       {/* ── Nav ── */}
       <nav className="out-nav">
@@ -150,17 +192,41 @@ function OutputAI() {
       {/* ── 메인 ── */}
       <div className="out-main">
 
-        {/* 주제 입력 */}
-        <div className="out-card">
+        {/* 주제 입력 + 자동완성 */}
+        <div className="out-card" onClick={(e) => e.stopPropagation()}>
           <div className="out-card-label">주제 입력</div>
-          <input
-            className="out-input out-input-lg"
-            placeholder="예: 하이브리드 클라우드 인프라 설계"
-            value={keyword}
-            onChange={(e) => setKeyword(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && handleGenerate()}
-          />
-          <div className="out-input-hint">Enter로 바로 생성할 수 있어요</div>
+          <div className="out-autocomplete-wrap">
+            <div className="out-input-row">
+              <input
+                className="out-input out-input-lg"
+                placeholder="예: 하이브리드 클라우드 인프라 설계"
+                value={keyword}
+                onChange={(e) => { setKeyword(e.target.value); setShowSuggestions(true); }}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter') { setShowSuggestions(false); handleGenerate(); }
+                  if (e.key === 'Escape') setShowSuggestions(false);
+                }}
+                onFocus={() => suggestions.length > 0 && setShowSuggestions(true)}
+                autoComplete="off"
+              />
+              {loadingSuggest && <span className="out-suggest-spinner">⏳</span>}
+            </div>
+            {showSuggestions && suggestions.length > 0 && (
+              <div className="out-suggestions">
+                {suggestions.map((s, i) => (
+                  <div
+                    key={i}
+                    className="out-suggestion-item"
+                    onMouseDown={() => handleSelectSuggestion(s)}
+                  >
+                    <span className="out-suggest-icon">🔍</span>
+                    {s}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="out-input-hint">입력하면 AI가 자동으로 주제를 제안해드려요</div>
         </div>
 
         {/* 형식 + 팀명 + 모델 가로 배치 */}
@@ -244,6 +310,7 @@ function OutputAI() {
               </div>
             </div>
             <div className="out-progress-track">
+              <div className="out-progress-fill" />
             </div>
             <div className="out-steps">
               {STEPS.map((step, i) => {
